@@ -5,19 +5,25 @@ import {
   IsOptional,
   IsString,
   Min,
+  MinLength,
 } from 'class-validator';
 
 export class CreateUserDto {
   @IsString()
-  @IsNotEmpty({ message: 'Name is required' })
+  @IsNotEmpty({ message: 'Họ tên không được để trống.' })
   name!: string;
 
-  @IsEmail({}, { message: 'Email must be a valid email address' })
-  @IsNotEmpty({ message: 'Email is required' })
+  @IsEmail({}, { message: 'Email không đúng định dạng.' })
+  @IsNotEmpty({ message: 'Email không được để trống.' })
   email!: string;
 
-  @IsNumber({}, { message: 'Age must be a number' })
-  @Min(0, { message: 'Age must be a positive number' })
+  @IsString()
+  @IsNotEmpty({ message: 'Mật khẩu không được để trống.' })
+  @MinLength(6, { message: 'Mật khẩu phải có ít nhất 6 ký tự.' })
+  password!: string;
+
+  @IsNumber({}, { message: 'Tuổi phải là số.' })
+  @Min(0, { message: 'Tuổi không hợp lệ.' })
   @IsOptional()
   age?: number;
 
@@ -28,4 +34,9 @@ export class CreateUserDto {
   @IsString()
   @IsOptional()
   address?: string;
+
+  /** ID vai trò tùy chỉnh (ObjectId) */
+  @IsString()
+  @IsOptional()
+  customRoleId?: string;
 }
