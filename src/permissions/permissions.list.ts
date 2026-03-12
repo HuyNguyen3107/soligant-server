@@ -149,5 +149,27 @@ export const SYSTEM_PERMISSIONS: PermissionDef[] = [
     group: 'Danh mục sản phẩm',
   },
 
+  // ── Tùy chỉnh Lego ───────────────────────────────────────────────────────
+  {
+    key: 'lego-customizations.view',
+    label: 'Xem nhóm và lựa chọn tùy chỉnh Lego',
+    group: 'Tùy chỉnh Lego',
+  },
+  {
+    key: 'lego-customizations.create',
+    label: 'Tạo nhóm và lựa chọn tùy chỉnh Lego',
+    group: 'Tùy chỉnh Lego',
+  },
+  {
+    key: 'lego-customizations.edit',
+    label: 'Chỉnh sửa nhóm và lựa chọn tùy chỉnh Lego',
+    group: 'Tùy chỉnh Lego',
+  },
+  {
+    key: 'lego-customizations.delete',
+    label: 'Xóa nhóm và lựa chọn tùy chỉnh Lego',
+    group: 'Tùy chỉnh Lego',
+  },
+
   // ── Thêm nhóm quyền mới ở đây khi phát triển thêm tính năng ───────────────
 ];
