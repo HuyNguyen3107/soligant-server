@@ -8,6 +8,7 @@ import {
   Matches,
   MaxLength,
   Min,
+  ValidateIf,
 } from 'class-validator';
 
 export class CreateLegoCustomizationOptionDto {
@@ -39,6 +40,7 @@ export class CreateLegoCustomizationOptionDto {
   image?: string;
 
   @IsString()
+  @ValidateIf((dto) => !dto.allowImageUpload)
   @Matches(/^#?[0-9A-Fa-f]{6}$/, {
     message: 'Mã màu phải là dạng hex, ví dụ #FF0000.',
   })
