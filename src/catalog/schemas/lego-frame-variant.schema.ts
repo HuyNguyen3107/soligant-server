@@ -26,6 +26,18 @@ export class LegoFrameVariant {
   @Prop({ required: true, min: 1 })
   legoQuantity!: number;
 
+  @Prop({ default: false })
+  allowVariableLegoCount!: boolean;
+
+  @Prop({ required: true, min: 0 })
+  legoCountMin!: number;
+
+  @Prop({ required: true, min: 0 })
+  legoCountMax!: number;
+
+  @Prop({ default: 0, min: 0 })
+  additionalLegoPrice!: number;
+
   @Prop({ required: true, min: 1 })
   price!: number;
 

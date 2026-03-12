@@ -8,6 +8,7 @@ import {
   IsPositive,
   IsString,
   MaxLength,
+  Min,
 } from 'class-validator';
 
 export class CreateLegoFrameVariantDto {
@@ -39,6 +40,22 @@ export class CreateLegoFrameVariantDto {
   @IsInt({ message: 'Số lượng Lego phải là số nguyên.' })
   @IsPositive({ message: 'Số lượng Lego phải lớn hơn 0.' })
   legoQuantity!: number;
+
+  @IsBoolean()
+  @IsOptional()
+  allowVariableLegoCount?: boolean;
+
+  @IsInt({ message: 'Số lượng Lego tối thiểu phải là số nguyên.' })
+  @Min(0, { message: 'Số lượng Lego tối thiểu phải từ 0 trở lên.' })
+  legoCountMin!: number;
+
+  @IsInt({ message: 'Số lượng Lego tối đa phải là số nguyên.' })
+  @Min(0, { message: 'Số lượng Lego tối đa phải từ 0 trở lên.' })
+  legoCountMax!: number;
+
+  @IsInt({ message: 'Giá cho mỗi Lego thêm phải là số nguyên.' })
+  @Min(0, { message: 'Giá cho mỗi Lego thêm phải từ 0 trở lên.' })
+  additionalLegoPrice!: number;
 
   @IsInt({ message: 'Giá tiền phải là số nguyên.' })
   @IsPositive({ message: 'Giá tiền phải lớn hơn 0.' })

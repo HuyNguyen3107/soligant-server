@@ -28,6 +28,10 @@ interface LegoFrameVariantSource {
   image?: unknown;
   size?: unknown;
   legoQuantity?: unknown;
+  allowVariableLegoCount?: unknown;
+  legoCountMin?: unknown;
+  legoCountMax?: unknown;
+  additionalLegoPrice?: unknown;
   price?: unknown;
   isActive?: unknown;
   updatedAt?: unknown;
@@ -58,6 +62,10 @@ export interface LegoFrameVariantResponse {
   image: string;
   size: '20x20' | '18x18' | '15x15';
   legoQuantity: number;
+  allowVariableLegoCount: boolean;
+  legoCountMin: number;
+  legoCountMax: number;
+  additionalLegoPrice: number;
   price: number;
   isActive: boolean;
   updatedAt: string;
@@ -88,6 +96,10 @@ export interface PublicCollectionProductResponse {
   image: string;
   size: '20x20' | '18x18' | '15x15';
   legoQuantity: number;
+  allowVariableLegoCount: boolean;
+  legoCountMin: number;
+  legoCountMax: number;
+  additionalLegoPrice: number;
   price: number;
   updatedAt: string;
 }
@@ -201,6 +213,10 @@ export class LegoFrameVariantsService {
       image: String(variant.image ?? ''),
       size: variant.size as PublicCollectionProductResponse['size'],
       legoQuantity: Number(variant.legoQuantity ?? 0),
+      allowVariableLegoCount: Boolean(variant.allowVariableLegoCount ?? false),
+      legoCountMin: Number(variant.legoCountMin ?? 0),
+      legoCountMax: Number(variant.legoCountMax ?? 0),
+      additionalLegoPrice: Number(variant.additionalLegoPrice ?? 0),
       price: Number(variant.price ?? 0),
       updatedAt: String(variant.updatedAt ?? new Date().toISOString()),
     }));
@@ -218,6 +234,7 @@ export class LegoFrameVariantsService {
     await this.assertCollectionExists(dto.collectionId);
     await this.assertCategoryExists(dto.categoryId);
     await this.assertVariantIsUnique(dto);
+    const variableCountConfig = this.normalizeVariableLegoCount(dto);
 
     const document = new this.legoFrameVariantModel({
       collectionId: dto.collectionId,
@@ -227,6 +244,10 @@ export class LegoFrameVariantsService {
       image: dto.image.trim(),
       size: dto.size,
       legoQuantity: dto.legoQuantity,
+      allowVariableLegoCount: variableCountConfig.allowVariableLegoCount,
+      legoCountMin: variableCountConfig.legoCountMin,
+      legoCountMax: variableCountConfig.legoCountMax,
+      additionalLegoPrice: variableCountConfig.additionalLegoPrice,
       price: dto.price,
       isActive: dto.isActive ?? true,
     });
@@ -247,6 +268,7 @@ export class LegoFrameVariantsService {
     await this.assertCollectionExists(dto.collectionId);
     await this.assertCategoryExists(dto.categoryId);
     await this.assertVariantIsUnique(dto, id);
+    const variableCountConfig = this.normalizeVariableLegoCount(dto);
 
     const nextImage = dto.image.trim();
     if (variant.image && variant.image !== nextImage) {
@@ -260,6 +282,10 @@ export class LegoFrameVariantsService {
     variant.image = nextImage;
     variant.size = dto.size;
     variant.legoQuantity = dto.legoQuantity;
+    variant.allowVariableLegoCount = variableCountConfig.allowVariableLegoCount;
+    variant.legoCountMin = variableCountConfig.legoCountMin;
+    variant.legoCountMax = variableCountConfig.legoCountMax;
+    variant.additionalLegoPrice = variableCountConfig.additionalLegoPrice;
     variant.price = dto.price;
     variant.isActive = dto.isActive ?? true;
 
@@ -334,9 +360,61 @@ export class LegoFrameVariantsService {
       image: String(variant.image ?? ''),
       size: variant.size as LegoFrameVariantResponse['size'],
       legoQuantity: Number(variant.legoQuantity ?? 0),
+      allowVariableLegoCount: Boolean(variant.allowVariableLegoCount ?? false),
+      legoCountMin: Number(variant.legoCountMin ?? 0),
+      legoCountMax: Number(variant.legoCountMax ?? 0),
+      additionalLegoPrice: Number(variant.additionalLegoPrice ?? 0),
       price: Number(variant.price ?? 0),
       isActive: Boolean(variant.isActive),
       updatedAt: String(variant.updatedAt ?? new Date().toISOString()),
+    };
+  }
+
+  private normalizeVariableLegoCount(dto: CreateLegoFrameVariantDto) {
+    const allowVariableLegoCount = Boolean(dto.allowVariableLegoCount);
+
+    if (!allowVariableLegoCount) {
+      return {
+        allowVariableLegoCount: false,
+        legoCountMin: 0,
+        legoCountMax: 0,
+        additionalLegoPrice: 0,
+      };
+    }
+
+    const legoCountMin = Number(dto.legoCountMin ?? 0);
+    const legoCountMax = Number(dto.legoCountMax ?? 0);
+    const additionalLegoPrice = Number(dto.additionalLegoPrice ?? 0);
+
+    if (!Number.isInteger(legoCountMin) || legoCountMin < 0) {
+      throw new BadRequestException(
+        'Số Lego chọn thêm tối thiểu phải là số nguyên từ 0 trở lên.',
+      );
+    }
+
+    if (!Number.isInteger(legoCountMax) || legoCountMax < 0) {
+      throw new BadRequestException(
+        'Số Lego chọn thêm tối đa phải là số nguyên từ 0 trở lên.',
+      );
+    }
+
+    if (legoCountMin > legoCountMax) {
+      throw new BadRequestException(
+        'Số Lego chọn thêm tối thiểu không được vượt quá tối đa.',
+      );
+    }
+
+    if (!Number.isInteger(additionalLegoPrice) || additionalLegoPrice < 0) {
+      throw new BadRequestException(
+        'Giá cho mỗi Lego thêm phải là số nguyên từ 0 trở lên.',
+      );
+    }
+
+    return {
+      allowVariableLegoCount: true,
+      legoCountMin,
+      legoCountMax,
+      additionalLegoPrice,
     };
   }
 
