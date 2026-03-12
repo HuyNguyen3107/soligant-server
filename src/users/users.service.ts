@@ -105,6 +105,19 @@ export class UsersService {
     return this.userModel.findOne({ email }).exec();
   }
 
+  async findByIdWithRolePermissions(id: string): Promise<UserDocument | null> {
+    return this.userModel
+      .findById(id)
+      .populate({
+        path: 'customRole',
+        populate: {
+          path: 'permissions',
+          select: 'key',
+        },
+      })
+      .exec();
+  }
+
   async validatePassword(
     plainPassword: string,
     hashedPassword: string,

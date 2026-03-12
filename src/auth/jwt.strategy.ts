@@ -1,9 +1,12 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { ConfigService } from '@nestjs/config';
-import { AuthService, JwtPayload } from './auth.service';
-import { UserDocument } from '../users/schemas/user.schema';
+import {
+  AuthService,
+  type AuthenticatedRequestUser,
+  JwtPayload,
+} from './auth.service';
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
@@ -19,11 +22,18 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     });
   }
 
-  async validate(payload: JwtPayload): Promise<UserDocument> {
-    const user = await this.authService.validateUser(payload.sub);
-    if (!user) {
-      throw new Error('User not found');
+  async validate(payload: JwtPayload): Promise<AuthenticatedRequestUser> {
+    if (!payload?.sub) {
+      throw new UnauthorizedException('Phiên đăng nhập không hợp lệ.');
     }
+
+    const user = await this.authService.validateRequestUser(payload.sub);
+    if (!user) {
+      throw new UnauthorizedException(
+        'Tài khoản không còn tồn tại hoặc đã bị vô hiệu hóa.',
+      );
+    }
+
     return user;
   }
 }

@@ -6,7 +6,7 @@ import {
   Get,
   Request,
 } from '@nestjs/common';
-import { AuthService } from './auth.service';
+import { AuthService, type AuthenticatedRequestUser } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { JwtAuthGuard } from './jwt-auth.guard';
@@ -27,17 +27,8 @@ export class AuthController {
 
   @UseGuards(JwtAuthGuard)
   @Get('me')
-  async getProfile(
-    @Request()
-    req: {
-      user: { _id: string; name: string; email: string; role: string };
-    },
-  ) {
-    return {
-      id: req.user._id,
-      name: req.user.name,
-      email: req.user.email,
-      role: req.user.role,
-    };
+  async getProfile(@Request() req: { user: AuthenticatedRequestUser }) {
+    const { _id, ...safeUser } = req.user;
+    return safeUser;
   }
 }

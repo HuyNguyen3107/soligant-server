@@ -77,6 +77,77 @@ export const SYSTEM_PERMISSIONS: PermissionDef[] = [
     label: 'Gán quyền cho vai trò',
     group: 'Vai trò & Quyền hạn',
   },
+  {
+    key: 'permissions.view',
+    label: 'Xem danh sách quyền hệ thống',
+    group: 'Vai trò & Quyền hạn',
+  },
+
+  // ── Quản lý bộ sưu tập ────────────────────────────────────────────────────
+  {
+    key: 'collections.view',
+    label: 'Xem danh sách bộ sưu tập',
+    group: 'Quản lý bộ sưu tập',
+  },
+  {
+    key: 'collections.create',
+    label: 'Tạo bộ sưu tập mới',
+    group: 'Quản lý bộ sưu tập',
+  },
+  {
+    key: 'collections.edit',
+    label: 'Chỉnh sửa bộ sưu tập',
+    group: 'Quản lý bộ sưu tập',
+  },
+  {
+    key: 'collections.delete',
+    label: 'Xóa bộ sưu tập',
+    group: 'Quản lý bộ sưu tập',
+  },
+
+  // ── Quản lý khung Lego ───────────────────────────────────────────────────
+  {
+    key: 'lego-frames.view',
+    label: 'Xem danh sách biến thể khung Lego',
+    group: 'Khung tranh Lego',
+  },
+  {
+    key: 'lego-frames.create',
+    label: 'Tạo biến thể khung Lego',
+    group: 'Khung tranh Lego',
+  },
+  {
+    key: 'lego-frames.edit',
+    label: 'Chỉnh sửa biến thể khung Lego',
+    group: 'Khung tranh Lego',
+  },
+  {
+    key: 'lego-frames.delete',
+    label: 'Xóa biến thể khung Lego',
+    group: 'Khung tranh Lego',
+  },
+
+  // ── Danh mục sản phẩm ────────────────────────────────────────────────────
+  {
+    key: 'product-categories.view',
+    label: 'Xem danh mục sản phẩm',
+    group: 'Danh mục sản phẩm',
+  },
+  {
+    key: 'product-categories.create',
+    label: 'Tạo danh mục sản phẩm',
+    group: 'Danh mục sản phẩm',
+  },
+  {
+    key: 'product-categories.edit',
+    label: 'Chỉnh sửa danh mục sản phẩm',
+    group: 'Danh mục sản phẩm',
+  },
+  {
+    key: 'product-categories.delete',
+    label: 'Xóa danh mục sản phẩm',
+    group: 'Danh mục sản phẩm',
+  },
 
   // ── Thêm nhóm quyền mới ở đây khi phát triển thêm tính năng ───────────────
 ];

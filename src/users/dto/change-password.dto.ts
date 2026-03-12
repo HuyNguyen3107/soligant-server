@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsString, MinLength } from 'class-validator';
+import { IsNotEmpty, IsString, Matches, MinLength } from 'class-validator';
 
 export class ChangePasswordDto {
   @IsString()
@@ -8,5 +8,6 @@ export class ChangePasswordDto {
   @IsString()
   @IsNotEmpty({ message: 'Mật khẩu mới không được để trống.' })
   @MinLength(6, { message: 'Mật khẩu mới phải có ít nhất 6 ký tự.' })
+  @Matches(/^\S+$/, { message: 'Mật khẩu mới không được chứa khoảng trắng.' })
   newPassword!: string;
 }

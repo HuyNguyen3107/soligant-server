@@ -4,6 +4,7 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  Matches,
   Min,
   MinLength,
 } from 'class-validator';
@@ -20,6 +21,7 @@ export class CreateUserDto {
   @IsString()
   @IsNotEmpty({ message: 'Mật khẩu không được để trống.' })
   @MinLength(6, { message: 'Mật khẩu phải có ít nhất 6 ký tự.' })
+  @Matches(/^\S+$/, { message: 'Mật khẩu không được chứa khoảng trắng.' })
   password!: string;
 
   @IsNumber({}, { message: 'Tuổi phải là số.' })
@@ -34,6 +36,10 @@ export class CreateUserDto {
   @IsString()
   @IsOptional()
   address?: string;
+
+  @IsString()
+  @IsOptional()
+  avatar?: string;
 
   /** ID vai trò tùy chỉnh (ObjectId) */
   @IsString()

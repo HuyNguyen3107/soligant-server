@@ -7,6 +7,7 @@ import { PermissionsModule } from './permissions/permissions.module';
 import { RolesModule } from './roles/roles.module';
 import { CollectionsModule } from './collections/collections.module';
 import { UploadModule } from './upload/upload.module';
+import { CatalogModule } from './catalog/catalog.module';
 
 @Module({
   imports: [
@@ -32,6 +33,7 @@ import { UploadModule } from './upload/upload.module';
     RolesModule,
     CollectionsModule,
     UploadModule,
+    CatalogModule,
   ],
 })
 export class AppModule {}
