@@ -8,6 +8,9 @@ import { RolesModule } from './roles/roles.module';
 import { CollectionsModule } from './collections/collections.module';
 import { UploadModule } from './upload/upload.module';
 import { CatalogModule } from './catalog/catalog.module';
+import { PromotionsModule } from './promotions/promotions.module';
+import { BackgroundThemesModule } from './background-themes/background-themes.module';
+import { BackgroundsModule } from './backgrounds/backgrounds.module';
 
 @Module({
   imports: [
@@ -34,6 +37,8 @@ import { CatalogModule } from './catalog/catalog.module';
     CollectionsModule,
     UploadModule,
     CatalogModule,
+    PromotionsModule,
+    BackgroundThemesModule,
   ],
 })
 export class AppModule {}

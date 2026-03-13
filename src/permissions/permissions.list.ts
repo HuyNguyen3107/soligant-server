@@ -171,5 +171,71 @@ export const SYSTEM_PERMISSIONS: PermissionDef[] = [
     group: 'Tùy chỉnh Lego',
   },
 
+  // ── Quản lý ưu đãi ────────────────────────────────────────────────────────
+  {
+    key: 'promotions.view',
+    label: 'Xem danh sách ưu đãi',
+    group: 'Quản lý ưu đãi',
+  },
+  {
+    key: 'promotions.create',
+    label: 'Tạo ưu đãi mới',
+    group: 'Quản lý ưu đãi',
+  },
+  {
+    key: 'promotions.edit',
+    label: 'Chỉnh sửa ưu đãi',
+    group: 'Quản lý ưu đãi',
+  },
+  {
+    key: 'promotions.delete',
+    label: 'Xóa ưu đãi',
+    group: 'Quản lý ưu đãi',
+  },
+
+  // ── Quản lý Chủ đề Background ────────────────────────────────────────────────────────
+  {
+    key: 'background-themes.view',
+    label: 'Xem danh sách',
+    group: 'Quản lý Chủ đề Background',
+  },
+  {
+    key: 'background-themes.create',
+    label: 'Tạo chủ đề background mới',
+    group: 'Quản lý Chủ đề Background',
+  },
+  {
+    key: 'background-themes.edit',
+    label: 'Chỉnh sửa chủ đề background',
+    group: 'Quản lý Chủ đề Background',
+  },
+  {
+    key: 'background-themes.delete',
+    label: 'Xóa chủ đề background',
+    group: 'Quản lý Chủ đề Background',
+  },
+
+  // ── Quản lý Background ────────────────────────────────────────────────────────
+  {
+    key: 'backgrounds.view',
+    label: 'Xem danh sách',
+    group: 'Quản lý Backgrounds',
+  },
+  {
+    key: 'backgrounds.create',
+    label: 'Tạo background mới',
+    group: 'Quản lý Backgrounds',
+  },
+  {
+    key: 'backgrounds.edit',
+    label: 'Chỉnh sửa background',
+    group: 'Quản lý Backgrounds',
+  },
+  {
+    key: 'backgrounds.delete',
+    label: 'Xóa background',
+    group: 'Quản lý Backgrounds',
+  },
+
   // ── Thêm nhóm quyền mới ở đây khi phát triển thêm tính năng ───────────────
 ];
