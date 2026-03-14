@@ -62,6 +62,9 @@ export class Background {
   @Prop({ required: true, trim: true, unique: true, maxlength: 200 })
   name!: string;
 
+  @Prop({ required: true, trim: true, maxlength: 10000 })
+  description!: string;
+
   @Prop({ type: Types.ObjectId, ref: BackgroundTheme.name, required: true })
   themeId!: Types.ObjectId;
 

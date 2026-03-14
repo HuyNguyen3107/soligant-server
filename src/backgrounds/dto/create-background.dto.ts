@@ -75,6 +75,11 @@ export class CreateBackgroundDto {
   @MaxLength(200)
   name!: string;
 
+  @IsString()
+  @IsNotEmpty({ message: 'Mô tả bối cảnh không được để trống.' })
+  @MaxLength(10000)
+  description!: string;
+
   @IsMongoId({ message: 'ID chủ đề không hợp lệ.' })
   @IsNotEmpty({ message: 'ID chủ đề không được để trống.' })
   themeId!: string;

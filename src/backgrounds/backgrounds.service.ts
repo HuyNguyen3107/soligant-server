@@ -36,6 +36,7 @@ interface BackgroundSource {
   _id?: unknown;
   id?: unknown;
   name?: unknown;
+  description?: unknown;
   themeId?: ExpandedTheme | Types.ObjectId;
   image?: unknown;
   fields?: unknown[];
@@ -61,6 +62,7 @@ export interface BackgroundFieldResponse {
 export interface BackgroundResponse {
   id: string;
   name: string;
+  description: string;
   themeId: string;
   themeName: string;
   image: string;
@@ -88,6 +90,17 @@ export class BackgroundsService {
     return backgrounds.map((b) => this.mapBackground(b));
   }
 
+  async findPublic(): Promise<BackgroundResponse[]> {
+    const backgrounds = (await this.backgroundModel
+      .find({ isActive: true })
+      .populate('themeId', 'name')
+      .sort({ name: 1 })
+      .lean()
+      .exec()) as BackgroundSource[];
+
+    return backgrounds.map((b) => this.mapBackground(b));
+  }
+
   async create(dto: CreateBackgroundDto): Promise<BackgroundResponse> {
     const name = normalizeName(dto.name);
     await this.assertNameUnique(name);
@@ -108,11 +121,13 @@ export class BackgroundsService {
               value: normalizeName(o.value),
             }))
           : [],
+      selectType: f.fieldType === 'select' ? f.selectType ?? 'dropdown' : undefined,
       sortOrder: f.sortOrder ?? index,
     }));
 
     const document = new this.backgroundModel({
       name,
+      description: normalizeRichText(dto.description),
       themeId: new Types.ObjectId(dto.themeId),
       image: normalizeText(dto.image),
       fields,
@@ -151,10 +166,12 @@ export class BackgroundsService {
               value: normalizeName(o.value),
             }))
           : [],
+      selectType: f.fieldType === 'select' ? f.selectType ?? 'dropdown' : undefined,
       sortOrder: f.sortOrder ?? index,
     }));
 
     background.name = name;
+    background.description = normalizeRichText(dto.description);
     background.themeId = new Types.ObjectId(dto.themeId);
     background.image = normalizeText(dto.image);
     background.fields = fields;
@@ -227,6 +244,7 @@ export class BackgroundsService {
     return {
       id: String(source._id ?? source.id),
       name: String(source.name ?? ''),
+      description: String(source.description ?? ''),
       themeId,
       themeName,
       image: String(source.image ?? ''),
@@ -272,6 +290,10 @@ function normalizeName(value: string) {
 
 function normalizeText(value?: string) {
   return value?.trim().replace(/\s+/g, ' ') ?? '';
+}
+
+function normalizeRichText(value?: string) {
+  return value?.trim() ?? '';
 }
 
 function escapeRegex(input: string) {

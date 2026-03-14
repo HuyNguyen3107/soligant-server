@@ -39,6 +39,7 @@ import { BackgroundsModule } from './backgrounds/backgrounds.module';
     CatalogModule,
     PromotionsModule,
     BackgroundThemesModule,
+    BackgroundsModule,
   ],
 })
 export class AppModule {}
