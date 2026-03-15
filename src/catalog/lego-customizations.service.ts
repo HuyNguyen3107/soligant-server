@@ -34,6 +34,8 @@ interface LegoCustomizationOptionSource {
   name?: unknown;
   description?: unknown;
   price?: unknown;
+  stockQuantity?: unknown;
+  lowStockThreshold?: unknown;
   allowImageUpload?: unknown;
   image?: unknown;
   colorCode?: unknown;
@@ -47,6 +49,8 @@ export interface LegoCustomizationOptionResponse {
   name: string;
   description: string;
   price: number;
+  stockQuantity: number;
+  lowStockThreshold: number;
   allowImageUpload: boolean;
   image: string;
   colorCode: string;
@@ -73,6 +77,7 @@ export interface PublicLegoCustomizationGroupResponse {
     name: string;
     description: string;
     price: number;
+    stockQuantity: number;
     allowImageUpload: boolean;
     image: string;
     colorCode: string;
@@ -108,12 +113,12 @@ export class LegoCustomizationsService {
   async findPublic(): Promise<PublicLegoCustomizationGroupResponse[]> {
     const [groups, options] = await Promise.all([
       this.legoCustomizationGroupModel
-        .find()
+        .find({ isActive: true })
         .sort({ updatedAt: -1, name: 1 })
         .lean()
         .exec() as Promise<LegoCustomizationGroupSource[]>,
       this.legoCustomizationOptionModel
-        .find()
+        .find({ isActive: true })
         .sort({ updatedAt: -1, name: 1 })
         .lean()
         .exec() as Promise<LegoCustomizationOptionSource[]>,
@@ -128,6 +133,7 @@ export class LegoCustomizationsService {
         name: option.name,
         description: option.description,
         price: option.price,
+        stockQuantity: option.stockQuantity,
         allowImageUpload: option.allowImageUpload,
         image: option.image,
         colorCode: option.colorCode,
@@ -223,6 +229,8 @@ export class LegoCustomizationsService {
       name,
       description: normalizeText(dto.description),
       price: normalizePrice(dto.price),
+      stockQuantity: normalizeStockQuantity(dto.stockQuantity),
+      lowStockThreshold: normalizeLowStockThreshold(dto.lowStockThreshold),
       allowImageUpload,
       image: allowImageUpload ? image : '',
       colorCode: allowImageUpload ? '' : colorCode,
@@ -258,6 +266,14 @@ export class LegoCustomizationsService {
     option.name = name;
     option.description = normalizeText(dto.description);
     option.price = normalizePrice(dto.price);
+    option.stockQuantity = normalizeStockQuantity(
+      dto.stockQuantity,
+      normalizeStockQuantity(option.stockQuantity),
+    );
+    option.lowStockThreshold = normalizeLowStockThreshold(
+      dto.lowStockThreshold,
+      normalizeLowStockThreshold(option.lowStockThreshold),
+    );
     option.allowImageUpload = allowImageUpload;
     option.image = allowImageUpload ? nextImage : '';
     option.colorCode = allowImageUpload ? '' : nextColorCode;
@@ -340,6 +356,8 @@ export class LegoCustomizationsService {
       name: String(option.name ?? ''),
       description: String(option.description ?? ''),
       price: Number(option.price ?? 0),
+      stockQuantity: normalizeStockQuantity(option.stockQuantity),
+      lowStockThreshold: normalizeLowStockThreshold(option.lowStockThreshold),
       allowImageUpload: Boolean(option.allowImageUpload),
       image: String(option.image ?? ''),
       colorCode: String(option.colorCode ?? ''),
@@ -424,6 +442,34 @@ function normalizePrice(value?: number) {
   }
 
   return value;
+}
+
+function normalizeStockQuantity(value?: number | unknown, fallback = 0) {
+  if (value === undefined || value === null || value === '') {
+    return fallback;
+  }
+
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < 0) {
+    throw new BadRequestException('Số lượng tồn kho phải là số nguyên từ 0 trở lên.');
+  }
+
+  return parsed;
+}
+
+function normalizeLowStockThreshold(value?: number | unknown, fallback = 5) {
+  if (value === undefined || value === null || value === '') {
+    return fallback;
+  }
+
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < 0) {
+    throw new BadRequestException(
+      'Ngưỡng cảnh báo tồn thấp phải là số nguyên từ 0 trở lên.',
+    );
+  }
+
+  return parsed;
 }
 
 function normalizeImage(value?: string) {

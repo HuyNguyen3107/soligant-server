@@ -11,6 +11,10 @@ import { CatalogModule } from './catalog/catalog.module';
 import { PromotionsModule } from './promotions/promotions.module';
 import { BackgroundThemesModule } from './background-themes/background-themes.module';
 import { BackgroundsModule } from './backgrounds/backgrounds.module';
+import { AddonOptionsModule } from './addon-options/addon-options.module';
+import { OrdersModule } from './orders/orders.module';
+import { CustomerOrderFieldsModule } from './customer-order-fields/customer-order-fields.module';
+import { InventoryModule } from './inventory/inventory.module';
 
 @Module({
   imports: [
@@ -40,6 +44,10 @@ import { BackgroundsModule } from './backgrounds/backgrounds.module';
     PromotionsModule,
     BackgroundThemesModule,
     BackgroundsModule,
+    AddonOptionsModule,
+    CustomerOrderFieldsModule,
+    OrdersModule,
+    InventoryModule,
   ],
 })
 export class AppModule {}

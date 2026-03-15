@@ -24,6 +24,7 @@ interface LegoFrameVariantSource {
   collectionId?: unknown;
   categoryId?: unknown;
   name?: unknown;
+  variantSymbol?: unknown;
   description?: unknown;
   image?: unknown;
   size?: unknown;
@@ -33,6 +34,8 @@ interface LegoFrameVariantSource {
   legoCountMax?: unknown;
   additionalLegoPrice?: unknown;
   price?: unknown;
+  stockQuantity?: unknown;
+  lowStockThreshold?: unknown;
   isActive?: unknown;
   updatedAt?: unknown;
 }
@@ -58,6 +61,7 @@ export interface LegoFrameVariantResponse {
   categoryId: string;
   categoryName: string;
   name: string;
+  variantSymbol: string;
   description: string;
   image: string;
   size: '20x20' | '18x18' | '15x15';
@@ -67,6 +71,8 @@ export interface LegoFrameVariantResponse {
   legoCountMax: number;
   additionalLegoPrice: number;
   price: number;
+  stockQuantity: number;
+  lowStockThreshold: number;
   isActive: boolean;
   updatedAt: string;
 }
@@ -92,6 +98,7 @@ export interface PublicCollectionProductResponse {
   categoryId: string;
   categoryName: string;
   name: string;
+  variantSymbol: string;
   description: string;
   image: string;
   size: '20x20' | '18x18' | '15x15';
@@ -209,6 +216,7 @@ export class LegoFrameVariantsService {
           ? String(categoriesById.get(String(variant.categoryId))?.name)
           : '',
       name: String(variant.name ?? ''),
+      variantSymbol: resolveVariantSymbol(variant.variantSymbol, variant.name),
       description: String(variant.description ?? ''),
       image: String(variant.image ?? ''),
       size: variant.size as PublicCollectionProductResponse['size'],
@@ -231,15 +239,20 @@ export class LegoFrameVariantsService {
   async create(
     dto: CreateLegoFrameVariantDto,
   ): Promise<LegoFrameVariantResponse> {
+    const variantSymbol = normalizeVariantSymbol(dto.variantSymbol);
+
     await this.assertCollectionExists(dto.collectionId);
     await this.assertCategoryExists(dto.categoryId);
     await this.assertVariantIsUnique(dto);
+    await this.assertVariantSymbolUnique(variantSymbol);
     const variableCountConfig = this.normalizeVariableLegoCount(dto);
+    const inventoryConfig = this.normalizeInventoryConfig(dto);
 
     const document = new this.legoFrameVariantModel({
       collectionId: dto.collectionId,
       categoryId: dto.categoryId,
       name: dto.name.trim(),
+      variantSymbol,
       description: dto.description?.trim() ?? '',
       image: dto.image.trim(),
       size: dto.size,
@@ -249,6 +262,8 @@ export class LegoFrameVariantsService {
       legoCountMax: variableCountConfig.legoCountMax,
       additionalLegoPrice: variableCountConfig.additionalLegoPrice,
       price: dto.price,
+      stockQuantity: inventoryConfig.stockQuantity,
+      lowStockThreshold: inventoryConfig.lowStockThreshold,
       isActive: dto.isActive ?? true,
     });
 
@@ -260,6 +275,8 @@ export class LegoFrameVariantsService {
     id: string,
     dto: CreateLegoFrameVariantDto,
   ): Promise<LegoFrameVariantResponse> {
+    const variantSymbol = normalizeVariantSymbol(dto.variantSymbol);
+
     const variant = await this.legoFrameVariantModel.findById(id).exec();
     if (!variant) {
       throw new NotFoundException('Không tìm thấy biến thể khung tranh Lego.');
@@ -268,7 +285,12 @@ export class LegoFrameVariantsService {
     await this.assertCollectionExists(dto.collectionId);
     await this.assertCategoryExists(dto.categoryId);
     await this.assertVariantIsUnique(dto, id);
+    await this.assertVariantSymbolUnique(variantSymbol, id);
     const variableCountConfig = this.normalizeVariableLegoCount(dto);
+    const inventoryConfig = this.normalizeInventoryConfig(dto, {
+      stockQuantity: variant.stockQuantity,
+      lowStockThreshold: variant.lowStockThreshold,
+    });
 
     const nextImage = dto.image.trim();
     if (variant.image && variant.image !== nextImage) {
@@ -278,6 +300,7 @@ export class LegoFrameVariantsService {
     variant.collectionId = dto.collectionId;
     variant.categoryId = dto.categoryId;
     variant.name = dto.name.trim();
+    variant.variantSymbol = variantSymbol;
     variant.description = dto.description?.trim() ?? '';
     variant.image = nextImage;
     variant.size = dto.size;
@@ -287,6 +310,8 @@ export class LegoFrameVariantsService {
     variant.legoCountMax = variableCountConfig.legoCountMax;
     variant.additionalLegoPrice = variableCountConfig.additionalLegoPrice;
     variant.price = dto.price;
+    variant.stockQuantity = inventoryConfig.stockQuantity;
+    variant.lowStockThreshold = inventoryConfig.lowStockThreshold;
     variant.isActive = dto.isActive ?? true;
 
     const saved = await variant.save();
@@ -356,6 +381,7 @@ export class LegoFrameVariantsService {
       categoryId: String(variant.categoryId ?? ''),
       categoryName: typeof category?.name === 'string' ? category.name : '',
       name: String(variant.name ?? ''),
+      variantSymbol: resolveVariantSymbol(variant.variantSymbol, variant.name),
       description: String(variant.description ?? ''),
       image: String(variant.image ?? ''),
       size: variant.size as LegoFrameVariantResponse['size'],
@@ -365,8 +391,39 @@ export class LegoFrameVariantsService {
       legoCountMax: Number(variant.legoCountMax ?? 0),
       additionalLegoPrice: Number(variant.additionalLegoPrice ?? 0),
       price: Number(variant.price ?? 0),
+      stockQuantity: Number(variant.stockQuantity ?? 0),
+      lowStockThreshold: Number(variant.lowStockThreshold ?? 5),
       isActive: Boolean(variant.isActive),
       updatedAt: String(variant.updatedAt ?? new Date().toISOString()),
+    };
+  }
+
+  private normalizeInventoryConfig(
+    dto: CreateLegoFrameVariantDto,
+    fallback?: { stockQuantity?: number; lowStockThreshold?: number },
+  ) {
+    const stockQuantity =
+      dto.stockQuantity === undefined
+        ? Number(fallback?.stockQuantity ?? 0)
+        : Number(dto.stockQuantity);
+    const lowStockThreshold =
+      dto.lowStockThreshold === undefined
+        ? Number(fallback?.lowStockThreshold ?? 5)
+        : Number(dto.lowStockThreshold);
+
+    if (!Number.isInteger(stockQuantity) || stockQuantity < 0) {
+      throw new BadRequestException('Số lượng tồn kho phải là số nguyên từ 0 trở lên.');
+    }
+
+    if (!Number.isInteger(lowStockThreshold) || lowStockThreshold < 0) {
+      throw new BadRequestException(
+        'Ngưỡng cảnh báo tồn kho thấp phải là số nguyên từ 0 trở lên.',
+      );
+    }
+
+    return {
+      stockQuantity,
+      lowStockThreshold,
     };
   }
 
@@ -468,6 +525,22 @@ export class LegoFrameVariantsService {
     }
   }
 
+  private async assertVariantSymbolUnique(
+    variantSymbol: string,
+    excludeId?: string,
+  ): Promise<void> {
+    const duplicate = await this.legoFrameVariantModel
+      .findOne({
+        ...(excludeId ? { _id: { $ne: excludeId } } : {}),
+        variantSymbol: new RegExp(`^${escapeRegex(variantSymbol)}$`, 'i'),
+      })
+      .exec();
+
+    if (duplicate) {
+      throw new BadRequestException('Ký hiệu biến thể đã tồn tại.');
+    }
+  }
+
   private deleteLocalImage(image: string): void {
     const match = image.match(/\/uploads\/([^/?#]+)$/);
     if (!match) return;
@@ -485,4 +558,36 @@ export class LegoFrameVariantsService {
 
 function escapeRegex(input: string) {
   return input.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function normalizeVariantSymbol(value: string): string {
+  const normalized = value.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+
+  if (!normalized) {
+    throw new BadRequestException('Ký hiệu biến thể không hợp lệ.');
+  }
+
+  return normalized.slice(0, 10);
+}
+
+function resolveVariantSymbol(value: unknown, fallbackSource: unknown): string {
+  const normalized = String(value ?? '')
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, '');
+
+  if (normalized) {
+    return normalized.slice(0, 10);
+  }
+
+  const fallback = String(fallbackSource ?? '')
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, '');
+
+  if (fallback) {
+    return fallback[0];
+  }
+
+  return 'X';
 }

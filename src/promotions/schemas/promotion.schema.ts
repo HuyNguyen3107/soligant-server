@@ -31,8 +31,17 @@ export class Promotion {
   @Prop({ required: true, min: 1 })
   conditionMinQuantity!: number;
 
+  @Prop({ type: [String], default: [] })
+  applicableProductIds!: string[];
+
   @Prop({ required: true, enum: ['gift', 'discount_fixed', 'discount_percent'] })
   rewardType!: 'gift' | 'discount_fixed' | 'discount_percent';
+
+  @Prop({
+    enum: ['fixed', 'multiply_by_condition'],
+    default: 'fixed',
+  })
+  rewardGiftQuantityMode!: 'fixed' | 'multiply_by_condition';
 
   @Prop({ type: [PromotionGiftSchema], default: [] })
   rewardGifts!: PromotionGift[];

@@ -18,6 +18,10 @@ import {
   LegoCustomizationOption,
   LegoCustomizationOptionDocument,
 } from '../catalog/schemas/lego-customization-option.schema';
+import {
+  LegoFrameVariant,
+  LegoFrameVariantDocument,
+} from '../catalog/schemas/lego-frame-variant.schema';
 
 interface PromotionSource {
   _id?: unknown;
@@ -26,7 +30,9 @@ interface PromotionSource {
   description?: unknown;
   conditionType?: unknown;
   conditionMinQuantity?: unknown;
+  applicableProductIds?: unknown[];
   rewardType?: unknown;
+  rewardGiftQuantityMode?: unknown;
   rewardGifts?: unknown[];
   rewardDiscountValue?: unknown;
   startDate?: unknown;
@@ -56,7 +62,9 @@ export interface PromotionResponse {
   description: string;
   conditionType: 'lego_quantity' | 'set_quantity';
   conditionMinQuantity: number;
+  applicableProductIds: string[];
   rewardType: 'gift' | 'discount_fixed' | 'discount_percent';
+  rewardGiftQuantityMode: 'fixed' | 'multiply_by_condition';
   rewardGifts: PromotionGiftResponse[];
   rewardDiscountValue: number;
   startDate: string | null;
@@ -75,6 +83,8 @@ export class PromotionsService {
     private readonly groupModel: Model<LegoCustomizationGroupDocument>,
     @InjectModel(LegoCustomizationOption.name)
     private readonly optionModel: Model<LegoCustomizationOptionDocument>,
+    @InjectModel(LegoFrameVariant.name)
+    private readonly legoFrameVariantModel: Model<LegoFrameVariantDocument>,
   ) {}
 
   async findAll(): Promise<PromotionResponse[]> {
@@ -103,14 +113,50 @@ export class PromotionsService {
     return promotions.map((p) => this.mapPromotion(p, groupMap, optionMap));
   }
 
+  async findPublic(): Promise<PromotionResponse[]> {
+    const now = new Date();
+    const promotions = (await this.promotionModel
+      .find({
+        isActive: true,
+        $and: [
+          {
+            $or: [
+              { startDate: null },
+              { startDate: { $exists: false } },
+              { startDate: { $lte: now } },
+            ],
+          },
+          {
+            $or: [
+              { endDate: null },
+              { endDate: { $exists: false } },
+              { endDate: { $gte: now } },
+            ],
+          },
+        ],
+      })
+      .sort({ updatedAt: -1 })
+      .lean()
+      .exec()) as PromotionSource[];
+
+    const [groupMap, optionMap] = await this.buildLookupMaps();
+    return promotions.map((p) => this.mapPromotion(p, groupMap, optionMap));
+  }
+
   async create(dto: CreatePromotionDto): Promise<PromotionResponse> {
     const name = normalizeName(dto.name);
     await this.assertNameUnique(name);
+    const applicableProductIds = normalizeProductIds(dto.applicableProductIds);
+    const rewardGiftQuantityMode = this.resolveGiftQuantityMode(
+      dto.rewardType,
+      dto.rewardGiftQuantityMode,
+    );
 
     if (dto.rewardType === 'gift') {
       await this.validateGifts(dto.rewardGifts ?? []);
     }
 
+    await this.validateApplicableProducts(applicableProductIds);
     this.validateDates(dto.startDate, dto.endDate);
     this.validateDiscount(dto.rewardType, dto.rewardDiscountValue);
 
@@ -119,7 +165,9 @@ export class PromotionsService {
       description: normalizeText(dto.description),
       conditionType: dto.conditionType,
       conditionMinQuantity: dto.conditionMinQuantity,
+      applicableProductIds,
       rewardType: dto.rewardType,
+      rewardGiftQuantityMode,
       rewardGifts:
         dto.rewardType === 'gift'
           ? (dto.rewardGifts ?? []).map((g) => ({
@@ -151,11 +199,17 @@ export class PromotionsService {
 
     const name = normalizeName(dto.name);
     await this.assertNameUnique(name, id);
+    const applicableProductIds = normalizeProductIds(dto.applicableProductIds);
+    const rewardGiftQuantityMode = this.resolveGiftQuantityMode(
+      dto.rewardType,
+      dto.rewardGiftQuantityMode,
+    );
 
     if (dto.rewardType === 'gift') {
       await this.validateGifts(dto.rewardGifts ?? []);
     }
 
+    await this.validateApplicableProducts(applicableProductIds);
     this.validateDates(dto.startDate, dto.endDate);
     this.validateDiscount(dto.rewardType, dto.rewardDiscountValue);
 
@@ -163,7 +217,9 @@ export class PromotionsService {
     promotion.description = normalizeText(dto.description);
     promotion.conditionType = dto.conditionType;
     promotion.conditionMinQuantity = dto.conditionMinQuantity;
+    promotion.applicableProductIds = applicableProductIds;
     promotion.rewardType = dto.rewardType;
+    promotion.rewardGiftQuantityMode = rewardGiftQuantityMode;
     promotion.rewardGifts =
       dto.rewardType === 'gift'
         ? (dto.rewardGifts ?? []).map((g) => ({
@@ -217,6 +273,13 @@ export class PromotionsService {
     groupMap: Map<string, string>,
     optionMap: Map<string, string>,
   ): PromotionResponse {
+    const rewardType =
+      (source.rewardType as PromotionResponse['rewardType']) ?? 'gift';
+    const rewardGiftQuantityMode = this.resolveGiftQuantityMode(
+      rewardType,
+      source.rewardGiftQuantityMode,
+    );
+
     const gifts = (Array.isArray(source.rewardGifts)
       ? source.rewardGifts
       : []
@@ -239,7 +302,11 @@ export class PromotionsService {
       description: String(source.description ?? ''),
       conditionType: (source.conditionType as PromotionResponse['conditionType']) ?? 'lego_quantity',
       conditionMinQuantity: Number(source.conditionMinQuantity ?? 1),
-      rewardType: (source.rewardType as PromotionResponse['rewardType']) ?? 'gift',
+      applicableProductIds: Array.isArray(source.applicableProductIds)
+        ? source.applicableProductIds.map((productId) => String(productId ?? '')).filter(Boolean)
+        : [],
+      rewardType,
+      rewardGiftQuantityMode,
       rewardGifts: gifts,
       rewardDiscountValue: Number(source.rewardDiscountValue ?? 0),
       startDate: source.startDate
@@ -297,6 +364,22 @@ export class PromotionsService {
     }
   }
 
+  private async validateApplicableProducts(productIds: string[]): Promise<void> {
+    if (productIds.length === 0) {
+      return;
+    }
+
+    const productCount = await this.legoFrameVariantModel
+      .countDocuments({ _id: { $in: productIds } })
+      .exec();
+
+    if (productCount !== productIds.length) {
+      throw new BadRequestException(
+        'Một hoặc nhiều sản phẩm áp dụng không tồn tại.',
+      );
+    }
+  }
+
   private validateDates(
     startDate?: string | null,
     endDate?: string | null,
@@ -324,6 +407,19 @@ export class PromotionsService {
       }
     }
   }
+
+  private resolveGiftQuantityMode(
+    rewardType: string,
+    mode?: unknown,
+  ): PromotionResponse['rewardGiftQuantityMode'] {
+    if (rewardType !== 'gift') {
+      return 'fixed';
+    }
+
+    return mode === 'multiply_by_condition'
+      ? 'multiply_by_condition'
+      : 'fixed';
+  }
 }
 
 function normalizeName(value: string) {
@@ -332,6 +428,10 @@ function normalizeName(value: string) {
 
 function normalizeText(value?: string) {
   return value?.trim().replace(/\s+/g, ' ') ?? '';
+}
+
+function normalizeProductIds(values?: string[]) {
+  return [...new Set((values ?? []).map((value) => value.trim()).filter(Boolean))];
 }
 
 function escapeRegex(input: string) {

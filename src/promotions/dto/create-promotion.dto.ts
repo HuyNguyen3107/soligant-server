@@ -49,11 +49,24 @@ export class CreatePromotionDto {
   @Min(1, { message: 'Số lượng tối thiểu phải từ 1 trở lên.' })
   conditionMinQuantity!: number;
 
+  @IsOptional()
+  @IsArray({ message: 'Danh sách sản phẩm áp dụng phải là mảng.' })
+  @IsMongoId({ each: true, message: 'Sản phẩm áp dụng không hợp lệ.' })
+  applicableProductIds?: string[];
+
   @IsEnum(['gift', 'discount_fixed', 'discount_percent'], {
     message:
       'Loại phần thưởng phải là "gift", "discount_fixed" hoặc "discount_percent".',
   })
   rewardType!: 'gift' | 'discount_fixed' | 'discount_percent';
+
+  @ValidateIf((dto) => dto.rewardType === 'gift')
+  @IsEnum(['fixed', 'multiply_by_condition'], {
+    message:
+      'Chế độ số lượng quà phải là "fixed" hoặc "multiply_by_condition".',
+  })
+  @IsOptional()
+  rewardGiftQuantityMode?: 'fixed' | 'multiply_by_condition';
 
   @ValidateIf((dto) => dto.rewardType === 'gift')
   @IsArray({ message: 'Danh sách quà tặng phải là mảng.' })

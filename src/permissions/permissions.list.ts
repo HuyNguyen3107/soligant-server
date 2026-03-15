@@ -193,6 +193,64 @@ export const SYSTEM_PERMISSIONS: PermissionDef[] = [
     group: 'Quản lý ưu đãi',
   },
 
+  // ── Quản lý Option mua thêm ───────────────────────────────────────────────
+  {
+    key: 'addon-options.view',
+    label: 'Xem danh sách option mua thêm',
+    group: 'Option mua thêm',
+  },
+  {
+    key: 'addon-options.create',
+    label: 'Tạo option mua thêm',
+    group: 'Option mua thêm',
+  },
+  {
+    key: 'addon-options.edit',
+    label: 'Chỉnh sửa option mua thêm',
+    group: 'Option mua thêm',
+  },
+  {
+    key: 'addon-options.delete',
+    label: 'Xóa option mua thêm',
+    group: 'Option mua thêm',
+  },
+
+  // ── Quản lý thông tin khách hàng ─────────────────────────────────────────
+  {
+    key: 'customer-order-fields.view',
+    label: 'Xem cấu hình form thông tin khách hàng',
+    group: 'Thông tin khách hàng',
+  },
+  {
+    key: 'customer-order-fields.edit',
+    label: 'Chỉnh sửa cấu hình form thông tin khách hàng',
+    group: 'Thông tin khách hàng',
+  },
+
+  // ── Quản lý đơn hàng ───────────────────────────────────────────────────────
+  {
+    key: 'orders.view',
+    label: 'Xem danh sách đơn hàng',
+    group: 'Đơn hàng',
+  },
+  {
+    key: 'orders.edit',
+    label: 'Cập nhật trạng thái đơn hàng',
+    group: 'Đơn hàng',
+  },
+
+  // ── Quản lý kho ───────────────────────────────────────────────────────────
+  {
+    key: 'inventory.view',
+    label: 'Xem tồn kho sản phẩm',
+    group: 'Quản lý kho',
+  },
+  {
+    key: 'inventory.edit',
+    label: 'Cập nhật tồn kho sản phẩm',
+    group: 'Quản lý kho',
+  },
+
   // ── Quản lý Chủ đề Background ────────────────────────────────────────────────────────
   {
     key: 'background-themes.view',

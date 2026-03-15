@@ -30,6 +30,16 @@ export class CreateLegoCustomizationOptionDto {
   @IsOptional()
   price?: number;
 
+  @IsInt({ message: 'Số lượng tồn kho phải là số nguyên.' })
+  @Min(0, { message: 'Số lượng tồn kho phải từ 0 trở lên.' })
+  @IsOptional()
+  stockQuantity?: number;
+
+  @IsInt({ message: 'Ngưỡng cảnh báo tồn thấp phải là số nguyên.' })
+  @Min(0, { message: 'Ngưỡng cảnh báo tồn thấp phải từ 0 trở lên.' })
+  @IsOptional()
+  lowStockThreshold?: number;
+
   @IsBoolean()
   @IsOptional()
   allowImageUpload?: boolean;

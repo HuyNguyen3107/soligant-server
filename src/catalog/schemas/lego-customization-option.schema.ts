@@ -17,6 +17,12 @@ export class LegoCustomizationOption {
   @Prop({ required: true, min: 0 })
   price!: number;
 
+  @Prop({ required: true, min: 0, default: 0 })
+  stockQuantity!: number;
+
+  @Prop({ required: true, min: 0, default: 5 })
+  lowStockThreshold!: number;
+
   @Prop({ default: false })
   allowImageUpload!: boolean;
 
