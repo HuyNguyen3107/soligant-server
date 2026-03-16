@@ -217,20 +217,12 @@ export class OrdersService {
     }
 
     const appliedGifts = this.normalizeAppliedGifts(dto.appliedGifts);
-    const inventoryDemand = this.buildInventoryDemand(normalizedItems);
-    await this.consumeInventoryDemand(inventoryDemand);
-
     const customizationDemand = this.buildCustomizationOptionDemand(
       normalizedItems,
       appliedGifts,
     );
 
-    try {
-      await this.consumeCustomizationOptionDemand(customizationDemand);
-    } catch (error) {
-      await this.restoreInventoryDemand(inventoryDemand);
-      throw error;
-    }
+    await this.consumeCustomizationOptionDemand(customizationDemand);
 
     let mappedOrder: OrderResponse;
 
@@ -264,7 +256,6 @@ export class OrdersService {
       const saved = (await orderDocument.save()).toObject() as OrderSource;
       mappedOrder = this.mapOrder(saved);
     } catch (error) {
-      await this.restoreInventoryDemand(inventoryDemand);
       await this.restoreCustomizationOptionDemand(customizationDemand);
       throw error;
     }
@@ -316,29 +307,19 @@ export class OrdersService {
       return this.mapOrder(order.toObject() as OrderSource);
     }
 
-    const inventoryDemand = this.buildInventoryDemandFromStoredItems(
-      Array.isArray(order.items) ? order.items : [],
-    );
     const customizationDemand = this.buildCustomizationOptionDemandFromStoredItems(
       Array.isArray(order.items) ? order.items : [],
       Array.isArray(order.appliedGifts) ? order.appliedGifts : [],
     );
 
-    let inventoryAction: 'consume' | 'restore' | null = null;
+    let stockAction: 'consume' | 'restore' | null = null;
 
     if (previousStatus !== 'cancelled' && status === 'cancelled') {
-      await this.restoreInventoryDemand(inventoryDemand);
       await this.restoreCustomizationOptionDemand(customizationDemand);
-      inventoryAction = 'restore';
+      stockAction = 'restore';
     } else if (previousStatus === 'cancelled' && status !== 'cancelled') {
-      await this.consumeInventoryDemand(inventoryDemand);
-      try {
-        await this.consumeCustomizationOptionDemand(customizationDemand);
-      } catch (error) {
-        await this.restoreInventoryDemand(inventoryDemand);
-        throw error;
-      }
-      inventoryAction = 'consume';
+      await this.consumeCustomizationOptionDemand(customizationDemand);
+      stockAction = 'consume';
     }
 
     order.status = status;
@@ -348,16 +329,10 @@ export class OrdersService {
     try {
       saved = (await order.save()).toObject() as OrderSource;
     } catch (error) {
-      if (inventoryAction === 'restore') {
-        await this.consumeInventoryDemand(inventoryDemand).catch(() => undefined);
-        await this.consumeCustomizationOptionDemand(customizationDemand).catch(
-          () => undefined,
-        );
-      } else if (inventoryAction === 'consume') {
-        await this.restoreInventoryDemand(inventoryDemand).catch(() => undefined);
-        await this.restoreCustomizationOptionDemand(customizationDemand).catch(
-          () => undefined,
-        );
+      if (stockAction === 'restore') {
+        await this.consumeCustomizationOptionDemand(customizationDemand).catch(() => undefined);
+      } else if (stockAction === 'consume') {
+        await this.restoreCustomizationOptionDemand(customizationDemand).catch(() => undefined);
       }
 
       throw error;
