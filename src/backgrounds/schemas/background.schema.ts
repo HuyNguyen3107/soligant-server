@@ -21,8 +21,9 @@ export class BackgroundFieldOption {
   value!: string;
 }
 
-export const BackgroundFieldOptionSchema =
-  SchemaFactory.createForClass(BackgroundFieldOption);
+export const BackgroundFieldOptionSchema = SchemaFactory.createForClass(
+  BackgroundFieldOption,
+);
 
 @Schema()
 export class BackgroundField {
@@ -31,7 +32,14 @@ export class BackgroundField {
 
   @Prop({
     required: true,
-    enum: ['short_text', 'long_text', 'select', 'image_upload', 'number', 'date'],
+    enum: [
+      'short_text',
+      'long_text',
+      'select',
+      'image_upload',
+      'number',
+      'date',
+    ],
   })
   fieldType!: BackgroundFieldType;
 
@@ -73,6 +81,12 @@ export class Background {
 
   @Prop({ type: [BackgroundFieldSchema], default: [] })
   fields!: BackgroundField[];
+
+  @Prop({ enum: ['lego', 'bear'], default: 'lego' })
+  applicableProductType!: 'lego' | 'bear';
+
+  @Prop({ type: [String], default: [] })
+  applicableProductIds!: string[];
 
   @Prop({ default: true })
   isActive!: boolean;

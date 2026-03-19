@@ -1,6 +1,14 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import {
+  BearCustomizationGroup,
+  BearCustomizationGroupSchema,
+} from '../catalog/schemas/bear-customization-group.schema';
+import {
+  BearCustomizationOption,
+  BearCustomizationOptionSchema,
+} from '../catalog/schemas/bear-customization-option.schema';
+import {
   LegoCustomizationGroup,
   LegoCustomizationGroupSchema,
 } from '../catalog/schemas/lego-customization-group.schema';
@@ -14,8 +22,22 @@ import { InventoryService } from './inventory.service';
 @Module({
   imports: [
     MongooseModule.forFeature([
-      { name: LegoCustomizationOption.name, schema: LegoCustomizationOptionSchema },
-      { name: LegoCustomizationGroup.name, schema: LegoCustomizationGroupSchema },
+      {
+        name: BearCustomizationOption.name,
+        schema: BearCustomizationOptionSchema,
+      },
+      {
+        name: BearCustomizationGroup.name,
+        schema: BearCustomizationGroupSchema,
+      },
+      {
+        name: LegoCustomizationOption.name,
+        schema: LegoCustomizationOptionSchema,
+      },
+      {
+        name: LegoCustomizationGroup.name,
+        schema: LegoCustomizationGroupSchema,
+      },
     ]),
   ],
   controllers: [InventoryController],

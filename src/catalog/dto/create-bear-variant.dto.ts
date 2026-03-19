@@ -40,6 +40,30 @@ export class CreateBearVariantDto {
   @IsNotEmpty({ message: 'Ảnh biến thể không được để trống.' })
   image!: string;
 
+  @IsInt({ message: 'Số lượng gấu phải là số nguyên.' })
+  @IsPositive({ message: 'Số lượng gấu phải lớn hơn 0.' })
+  @IsOptional()
+  bearQuantity?: number;
+
+  @IsBoolean()
+  @IsOptional()
+  allowVariableBearCount?: boolean;
+
+  @IsInt({ message: 'Số gấu chọn thêm tối thiểu phải là số nguyên.' })
+  @Min(0, { message: 'Số gấu chọn thêm tối thiểu phải từ 0 trở lên.' })
+  @IsOptional()
+  bearCountMin?: number;
+
+  @IsInt({ message: 'Số gấu chọn thêm tối đa phải là số nguyên.' })
+  @Min(0, { message: 'Số gấu chọn thêm tối đa phải từ 0 trở lên.' })
+  @IsOptional()
+  bearCountMax?: number;
+
+  @IsInt({ message: 'Giá cho mỗi gấu thêm phải là số nguyên.' })
+  @Min(0, { message: 'Giá cho mỗi gấu thêm phải từ 0 trở lên.' })
+  @IsOptional()
+  additionalBearPrice?: number;
+
   @IsInt({ message: 'Giá tiền phải là số nguyên.' })
   @IsPositive({ message: 'Giá tiền phải lớn hơn 0.' })
   price!: number;
@@ -53,6 +77,10 @@ export class CreateBearVariantDto {
   @Min(0, { message: 'Ngưỡng cảnh báo tồn kho thấp phải từ 0 trở lên.' })
   @IsOptional()
   lowStockThreshold?: number;
+
+  @IsBoolean()
+  @IsOptional()
+  hasBackground?: boolean;
 
   @IsBoolean()
   @IsOptional()

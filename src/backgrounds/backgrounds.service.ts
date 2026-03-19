@@ -8,8 +8,20 @@ import { existsSync, unlinkSync } from 'fs';
 import { Model, Types } from 'mongoose';
 import { join } from 'path';
 import { CreateBackgroundDto } from './dto/create-background.dto';
-import { Background, BackgroundDocument, BackgroundFieldType } from './schemas/background.schema';
+import {
+  Background,
+  BackgroundDocument,
+  BackgroundFieldType,
+} from './schemas/background.schema';
 import { BackgroundThemeDocument } from '../background-themes/schemas/background-theme.schema';
+import {
+  LegoFrameVariant,
+  LegoFrameVariantDocument,
+} from '../catalog/schemas/lego-frame-variant.schema';
+import {
+  BearVariant,
+  BearVariantDocument,
+} from '../catalog/schemas/bear-variant.schema';
 
 interface FieldOptionSource {
   label?: unknown;
@@ -40,6 +52,8 @@ interface BackgroundSource {
   themeId?: ExpandedTheme | Types.ObjectId;
   image?: unknown;
   fields?: unknown[];
+  applicableProductType?: unknown;
+  applicableProductIds?: unknown[];
   isActive?: unknown;
   updatedAt?: unknown;
 }
@@ -68,6 +82,8 @@ export interface BackgroundResponse {
   image: string;
   fields: BackgroundFieldResponse[];
   fieldCount: number;
+  applicableProductType: 'lego' | 'bear';
+  applicableProductIds: string[];
   isActive: boolean;
   updatedAt: string;
 }
@@ -77,6 +93,10 @@ export class BackgroundsService {
   constructor(
     @InjectModel(Background.name)
     private readonly backgroundModel: Model<BackgroundDocument>,
+    @InjectModel(LegoFrameVariant.name)
+    private readonly legoFrameVariantModel: Model<LegoFrameVariantDocument>,
+    @InjectModel(BearVariant.name)
+    private readonly bearVariantModel: Model<BearVariantDocument>,
   ) {}
 
   async findAll(): Promise<BackgroundResponse[]> {
@@ -90,9 +110,16 @@ export class BackgroundsService {
     return backgrounds.map((b) => this.mapBackground(b));
   }
 
-  async findPublic(): Promise<BackgroundResponse[]> {
+  async findPublic(productType?: string): Promise<BackgroundResponse[]> {
+    const normalizedProductType = this.parseProductType(productType);
+
+    const query: Record<string, unknown> = { isActive: true };
+    if (normalizedProductType) {
+      query.applicableProductType = normalizedProductType;
+    }
+
     const backgrounds = (await this.backgroundModel
-      .find({ isActive: true })
+      .find(query)
       .populate('themeId', 'name')
       .sort({ name: 1 })
       .lean()
@@ -109,6 +136,13 @@ export class BackgroundsService {
       throw new BadRequestException('ID chủ đề không hợp lệ.');
     }
 
+    const applicableProductType = dto.applicableProductType ?? 'lego';
+    const applicableProductIds = normalizeProductIds(dto.applicableProductIds);
+    await this.validateApplicableProducts(
+      applicableProductIds,
+      applicableProductType,
+    );
+
     const fields = (dto.fields ?? []).map((f, index) => ({
       label: normalizeName(f.label),
       fieldType: f.fieldType as BackgroundFieldType,
@@ -121,7 +155,8 @@ export class BackgroundsService {
               value: normalizeName(o.value),
             }))
           : [],
-      selectType: f.fieldType === 'select' ? f.selectType ?? 'dropdown' : undefined,
+      selectType:
+        f.fieldType === 'select' ? (f.selectType ?? 'dropdown') : undefined,
       sortOrder: f.sortOrder ?? index,
     }));
 
@@ -130,16 +165,24 @@ export class BackgroundsService {
       description: normalizeRichText(dto.description),
       themeId: new Types.ObjectId(dto.themeId),
       image: normalizeText(dto.image),
+      applicableProductType,
+      applicableProductIds,
       fields,
       isActive: dto.isActive ?? true,
     });
 
     const saved = await document.save();
-    const populated = (await saved.populate('themeId', 'name')) as unknown as BackgroundSource;
+    const populated = (await saved.populate(
+      'themeId',
+      'name',
+    )) as unknown as BackgroundSource;
     return this.mapBackground(populated);
   }
 
-  async update(id: string, dto: CreateBackgroundDto): Promise<BackgroundResponse> {
+  async update(
+    id: string,
+    dto: CreateBackgroundDto,
+  ): Promise<BackgroundResponse> {
     const background = await this.backgroundModel.findById(id).exec();
     if (!background) {
       throw new NotFoundException('Không tìm thấy bối cảnh.');
@@ -151,6 +194,13 @@ export class BackgroundsService {
     if (!Types.ObjectId.isValid(dto.themeId)) {
       throw new BadRequestException('ID chủ đề không hợp lệ.');
     }
+
+    const applicableProductType = dto.applicableProductType ?? 'lego';
+    const applicableProductIds = normalizeProductIds(dto.applicableProductIds);
+    await this.validateApplicableProducts(
+      applicableProductIds,
+      applicableProductType,
+    );
 
     const previousImage = background.image;
 
@@ -166,7 +216,8 @@ export class BackgroundsService {
               value: normalizeName(o.value),
             }))
           : [],
-      selectType: f.fieldType === 'select' ? f.selectType ?? 'dropdown' : undefined,
+      selectType:
+        f.fieldType === 'select' ? (f.selectType ?? 'dropdown') : undefined,
       sortOrder: f.sortOrder ?? index,
     }));
 
@@ -174,6 +225,8 @@ export class BackgroundsService {
     background.description = normalizeRichText(dto.description);
     background.themeId = new Types.ObjectId(dto.themeId);
     background.image = normalizeText(dto.image);
+    background.applicableProductType = applicableProductType;
+    background.applicableProductIds = applicableProductIds;
     background.fields = fields;
     background.isActive = dto.isActive ?? true;
 
@@ -187,7 +240,10 @@ export class BackgroundsService {
     }
 
     const saved = await background.save();
-    const populated = (await saved.populate('themeId', 'name')) as unknown as BackgroundSource;
+    const populated = (await saved.populate(
+      'themeId',
+      'name',
+    )) as unknown as BackgroundSource;
     return this.mapBackground(populated);
   }
 
@@ -222,7 +278,10 @@ export class BackgroundsService {
               };
             },
           ),
-          selectType: field.fieldType === 'select' ? String(field.selectType ?? 'dropdown') : undefined,
+          selectType:
+            field.fieldType === 'select'
+              ? String(field.selectType ?? 'dropdown')
+              : undefined,
           sortOrder: Number(field.sortOrder ?? 0),
         };
       },
@@ -230,9 +289,12 @@ export class BackgroundsService {
 
     let themeId = '';
     let themeName = '';
-    
+
     if (source.themeId) {
-      if (typeof source.themeId === 'object' && ('_id' in source.themeId || 'id' in source.themeId)) {
+      if (
+        typeof source.themeId === 'object' &&
+        ('_id' in source.themeId || 'id' in source.themeId)
+      ) {
         const t = source.themeId as ExpandedTheme;
         themeId = String(t._id ?? t.id ?? '');
         themeName = String(t.name ?? '');
@@ -250,9 +312,84 @@ export class BackgroundsService {
       image: String(source.image ?? ''),
       fields,
       fieldCount: fields.length,
+      applicableProductType: this.normalizeApplicableProductType(
+        source.applicableProductType,
+      ),
+      applicableProductIds: normalizeProductIds(
+        Array.isArray(source.applicableProductIds)
+          ? source.applicableProductIds.map((value) => String(value ?? ''))
+          : [],
+      ),
       isActive: Boolean(source.isActive),
       updatedAt: String(source.updatedAt ?? new Date().toISOString()),
     };
+  }
+
+  private async validateApplicableProducts(
+    productIds: string[],
+    productType: 'lego' | 'bear',
+  ): Promise<void> {
+    if (productIds.length === 0) {
+      return;
+    }
+
+    if (productType === 'bear') {
+      const variants = (await this.bearVariantModel
+        .find({ _id: { $in: productIds } }, { _id: 1, hasBackground: 1 })
+        .lean()
+        .exec()) as Array<{ _id?: unknown; hasBackground?: unknown }>;
+
+      if (variants.length !== productIds.length) {
+        throw new BadRequestException(
+          'Một hoặc nhiều biến thể áp dụng không tồn tại.',
+        );
+      }
+
+      const hasDisabledBackground = variants.some(
+        (variant) => !Boolean(variant.hasBackground ?? true),
+      );
+
+      if (hasDisabledBackground) {
+        throw new BadRequestException(
+          'Biến thể gấu đang tắt background không thể được áp dụng background.',
+        );
+      }
+
+      return;
+    }
+
+    const productCount = await (
+      this.legoFrameVariantModel.countDocuments({
+        _id: { $in: productIds },
+      } as any) as any
+    ).exec();
+
+    if (productCount !== productIds.length) {
+      throw new BadRequestException(
+        'Một hoặc nhiều biến thể áp dụng không tồn tại.',
+      );
+    }
+  }
+
+  private normalizeApplicableProductType(value: unknown): 'lego' | 'bear' {
+    return value === 'bear' ? 'bear' : 'lego';
+  }
+
+  private parseProductType(value?: string): 'lego' | 'bear' | undefined {
+    if (typeof value !== 'string') {
+      return undefined;
+    }
+
+    const normalized = value.trim().toLowerCase();
+    if (!normalized) {
+      return undefined;
+    }
+
+    if (normalized === 'lego' || normalized === 'bear') {
+      return normalized;
+    }
+
+    throw new BadRequestException('productType phải là lego hoặc bear.');
   }
 
   private deleteLocalImage(image: string): void {
@@ -294,6 +431,14 @@ function normalizeText(value?: string) {
 
 function normalizeRichText(value?: string) {
   return value?.trim() ?? '';
+}
+
+function normalizeProductIds(values?: unknown[]) {
+  return [
+    ...new Set(
+      (values ?? []).map((value) => String(value ?? '').trim()).filter(Boolean),
+    ),
+  ];
 }
 
 function escapeRegex(input: string) {

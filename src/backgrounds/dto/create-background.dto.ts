@@ -33,10 +33,13 @@ export class BackgroundFieldDto {
   @MaxLength(200)
   label!: string;
 
-  @IsEnum(['short_text', 'long_text', 'select', 'image_upload', 'number', 'date'], {
-    message:
-      'Loại trường phải là: short_text, long_text, select, image_upload, number, date.',
-  })
+  @IsEnum(
+    ['short_text', 'long_text', 'select', 'image_upload', 'number', 'date'],
+    {
+      message:
+        'Loại trường phải là: short_text, long_text, select, image_upload, number, date.',
+    },
+  )
   fieldType!: string;
 
   @IsString()
@@ -88,6 +91,17 @@ export class CreateBackgroundDto {
   @IsOptional()
   @MaxLength(500)
   image?: string;
+
+  @IsEnum(['lego', 'bear'], {
+    message: 'Loại sản phẩm áp dụng phải là lego hoặc bear.',
+  })
+  @IsOptional()
+  applicableProductType?: 'lego' | 'bear';
+
+  @IsOptional()
+  @IsArray({ message: 'Danh sách biến thể áp dụng phải là mảng.' })
+  @IsMongoId({ each: true, message: 'Biến thể áp dụng không hợp lệ.' })
+  applicableProductIds?: string[];
 
   @IsArray()
   @ValidateNested({ each: true })

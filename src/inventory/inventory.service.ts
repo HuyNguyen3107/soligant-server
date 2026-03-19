@@ -6,6 +6,14 @@ import {
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import {
+  BearCustomizationGroup,
+  BearCustomizationGroupDocument,
+} from '../catalog/schemas/bear-customization-group.schema';
+import {
+  BearCustomizationOption,
+  BearCustomizationOptionDocument,
+} from '../catalog/schemas/bear-customization-option.schema';
+import {
   LegoCustomizationGroup,
   LegoCustomizationGroupDocument,
 } from '../catalog/schemas/lego-customization-group.schema';
@@ -35,9 +43,11 @@ interface GroupSource {
 }
 
 export type InventoryStockStatus = 'in_stock' | 'low_stock' | 'out_of_stock';
+export type InventorySource = 'lego' | 'bear';
 
 export interface InventoryItemResponse {
   id: string;
+  source: InventorySource;
   groupId: string;
   groupName: string;
   optionName: string;
@@ -52,6 +62,10 @@ export interface InventoryItemResponse {
 @Injectable()
 export class InventoryService {
   constructor(
+    @InjectModel(BearCustomizationOption.name)
+    private readonly bearCustomizationOptionModel: Model<BearCustomizationOptionDocument>,
+    @InjectModel(BearCustomizationGroup.name)
+    private readonly bearCustomizationGroupModel: Model<BearCustomizationGroupDocument>,
     @InjectModel(LegoCustomizationOption.name)
     private readonly legoCustomizationOptionModel: Model<LegoCustomizationOptionDocument>,
     @InjectModel(LegoCustomizationGroup.name)
@@ -59,13 +73,25 @@ export class InventoryService {
   ) {}
 
   async findAll(): Promise<InventoryItemResponse[]> {
-    const options = (await this.legoCustomizationOptionModel
-      .find()
-      .sort({ updatedAt: -1, createdAt: -1, name: 1 })
-      .lean()
-      .exec()) as OptionSource[];
+    const [legoOptions, bearOptions] = await Promise.all([
+      this.legoCustomizationOptionModel
+        .find()
+        .sort({ updatedAt: -1, createdAt: -1, name: 1 })
+        .lean()
+        .exec() as Promise<OptionSource[]>,
+      this.bearCustomizationOptionModel
+        .find()
+        .sort({ updatedAt: -1, createdAt: -1, name: 1 })
+        .lean()
+        .exec() as Promise<OptionSource[]>,
+    ]);
 
-    return this.decorateOptions(options);
+    const [legoItems, bearItems] = await Promise.all([
+      this.decorateOptionsBySource('lego', legoOptions),
+      this.decorateOptionsBySource('bear', bearOptions),
+    ]);
+
+    return sortInventoryItems([...legoItems, ...bearItems]);
   }
 
   async updateItem(
@@ -82,18 +108,20 @@ export class InventoryService {
       );
     }
 
-    const option = (await this.legoCustomizationOptionModel
-      .findById(id)
-      .lean()
-      .exec()) as OptionSource | null;
+    const optionLookup = await this.findOptionById(id);
 
-    if (!option) {
+    if (!optionLookup) {
       throw new NotFoundException(
         'Không tìm thấy lựa chọn tùy chỉnh để cập nhật kho.',
       );
     }
 
-    let nextStockQuantity = normalizeNonNegativeInteger(option.stockQuantity, 0);
+    const { option, source } = optionLookup;
+
+    let nextStockQuantity = normalizeNonNegativeInteger(
+      option.stockQuantity,
+      0,
+    );
 
     if (hasStockQuantity) {
       nextStockQuantity = Number(dto.stockQuantity);
@@ -104,7 +132,9 @@ export class InventoryService {
     }
 
     if (!Number.isInteger(nextStockQuantity) || nextStockQuantity < 0) {
-      throw new BadRequestException('Số lượng tồn kho sau cập nhật phải từ 0 trở lên.');
+      throw new BadRequestException(
+        'Số lượng tồn kho sau cập nhật phải từ 0 trở lên.',
+      );
     }
 
     const updates: Record<string, unknown> = {
@@ -123,16 +153,28 @@ export class InventoryService {
       updates.lowStockThreshold = lowStockThreshold;
     }
 
-    const saved = (await this.legoCustomizationOptionModel
-      .findByIdAndUpdate(
-        id,
-        { $set: updates },
-        {
-          new: true,
-          lean: true,
-        },
-      )
-      .exec()) as OptionSource | null;
+    const saved =
+      source === 'lego'
+        ? ((await this.legoCustomizationOptionModel
+            .findByIdAndUpdate(
+              id,
+              { $set: updates },
+              {
+                new: true,
+                lean: true,
+              },
+            )
+            .exec()) as OptionSource | null)
+        : ((await this.bearCustomizationOptionModel
+            .findByIdAndUpdate(
+              id,
+              { $set: updates },
+              {
+                new: true,
+                lean: true,
+              },
+            )
+            .exec()) as OptionSource | null);
 
     if (!saved) {
       throw new NotFoundException(
@@ -140,30 +182,77 @@ export class InventoryService {
       );
     }
 
-    const [decorated] = await this.decorateOptions([saved]);
+    const [decorated] = await this.decorateOptionsBySource(source, [saved]);
     return decorated;
   }
 
-  private async decorateOptions(
+  private async findOptionById(
+    id: string,
+  ): Promise<{ source: InventorySource; option: OptionSource } | null> {
+    const legoOption = (await this.legoCustomizationOptionModel
+      .findById(id)
+      .lean()
+      .exec()) as OptionSource | null;
+
+    if (legoOption) {
+      return {
+        source: 'lego',
+        option: legoOption,
+      };
+    }
+
+    const bearOption = (await this.bearCustomizationOptionModel
+      .findById(id)
+      .lean()
+      .exec()) as OptionSource | null;
+
+    if (bearOption) {
+      return {
+        source: 'bear',
+        option: bearOption,
+      };
+    }
+
+    return null;
+  }
+
+  private async decorateOptionsBySource(
+    source: InventorySource,
     options: OptionSource[],
   ): Promise<InventoryItemResponse[]> {
     const groupIds = [
-      ...new Set(options.map((option) => String(option.groupId ?? '')).filter(Boolean)),
+      ...new Set(
+        options.map((option) => String(option.groupId ?? '')).filter(Boolean),
+      ),
     ];
 
-    const groups = groupIds.length
-      ? ((await this.legoCustomizationGroupModel
-          .find({ _id: { $in: groupIds } })
-          .lean()
-          .exec()) as GroupSource[])
-      : [];
+    let groups: GroupSource[] = [];
+
+    if (groupIds.length) {
+      groups =
+        source === 'lego'
+          ? ((await this.legoCustomizationGroupModel
+              .find({ _id: { $in: groupIds } })
+              .lean()
+              .exec()) as GroupSource[])
+          : ((await this.bearCustomizationGroupModel
+              .find({ _id: { $in: groupIds } })
+              .lean()
+              .exec()) as GroupSource[]);
+    }
 
     const groupsById = new Map(
-      groups.map((group) => [String(group._id ?? ''), String(group.name ?? '')]),
+      groups.map((group) => [
+        String(group._id ?? ''),
+        String(group.name ?? ''),
+      ]),
     );
 
     return options.map((option) => {
-      const stockQuantity = normalizeNonNegativeInteger(option.stockQuantity, 0);
+      const stockQuantity = normalizeNonNegativeInteger(
+        option.stockQuantity,
+        0,
+      );
       const lowStockThreshold = normalizeNonNegativeInteger(
         option.lowStockThreshold,
         5,
@@ -171,6 +260,7 @@ export class InventoryService {
 
       return {
         id: String(option._id ?? option.id ?? ''),
+        source,
         groupId: String(option.groupId ?? ''),
         groupName: groupsById.get(String(option.groupId ?? '')) ?? '',
         optionName: String(option.name ?? ''),
@@ -208,4 +298,19 @@ function resolveStockStatus(
   }
 
   return 'in_stock';
+}
+
+function sortInventoryItems(
+  items: InventoryItemResponse[],
+): InventoryItemResponse[] {
+  return [...items].sort((left, right) => {
+    const timeDiff =
+      new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime();
+
+    if (timeDiff !== 0) {
+      return timeDiff;
+    }
+
+    return left.optionName.localeCompare(right.optionName, 'vi-VN');
+  });
 }

@@ -6,10 +6,19 @@ import {
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { CreatePromotionDto } from './dto/create-promotion.dto';
+import { Promotion, PromotionDocument } from './schemas/promotion.schema';
 import {
-  Promotion,
-  PromotionDocument,
-} from './schemas/promotion.schema';
+  BearCustomizationGroup,
+  BearCustomizationGroupDocument,
+} from '../catalog/schemas/bear-customization-group.schema';
+import {
+  BearCustomizationOption,
+  BearCustomizationOptionDocument,
+} from '../catalog/schemas/bear-customization-option.schema';
+import {
+  BearVariant,
+  BearVariantDocument,
+} from '../catalog/schemas/bear-variant.schema';
 import {
   LegoCustomizationGroup,
   LegoCustomizationGroupDocument,
@@ -30,8 +39,10 @@ interface PromotionSource {
   description?: unknown;
   conditionType?: unknown;
   conditionMinQuantity?: unknown;
+  applicableProductType?: unknown;
   applicableProductIds?: unknown[];
   rewardType?: unknown;
+  rewardGiftSelectionMode?: unknown;
   rewardGiftQuantityMode?: unknown;
   rewardGifts?: unknown[];
   rewardDiscountValue?: unknown;
@@ -48,6 +59,8 @@ interface GiftSource {
   quantity?: unknown;
 }
 
+type PromotionApplicableProductType = 'lego' | 'bear';
+
 export interface PromotionGiftResponse {
   groupId: string;
   optionId: string;
@@ -62,8 +75,10 @@ export interface PromotionResponse {
   description: string;
   conditionType: 'lego_quantity' | 'set_quantity';
   conditionMinQuantity: number;
+  applicableProductType: PromotionApplicableProductType;
   applicableProductIds: string[];
   rewardType: 'gift' | 'discount_fixed' | 'discount_percent';
+  rewardGiftSelectionMode: 'all' | 'choose_one';
   rewardGiftQuantityMode: 'fixed' | 'multiply_by_condition';
   rewardGifts: PromotionGiftResponse[];
   rewardDiscountValue: number;
@@ -79,6 +94,12 @@ export class PromotionsService {
   constructor(
     @InjectModel(Promotion.name)
     private readonly promotionModel: Model<PromotionDocument>,
+    @InjectModel(BearCustomizationGroup.name)
+    private readonly bearGroupModel: Model<BearCustomizationGroupDocument>,
+    @InjectModel(BearCustomizationOption.name)
+    private readonly bearOptionModel: Model<BearCustomizationOptionDocument>,
+    @InjectModel(BearVariant.name)
+    private readonly bearVariantModel: Model<BearVariantDocument>,
     @InjectModel(LegoCustomizationGroup.name)
     private readonly groupModel: Model<LegoCustomizationGroupDocument>,
     @InjectModel(LegoCustomizationOption.name)
@@ -94,21 +115,7 @@ export class PromotionsService {
       .lean()
       .exec()) as PromotionSource[];
 
-    const [groups, options] = await Promise.all([
-      this.groupModel.find().lean().exec() as Promise<
-        Array<{ _id?: unknown; name?: unknown }>
-      >,
-      this.optionModel.find().lean().exec() as Promise<
-        Array<{ _id?: unknown; name?: unknown }>
-      >,
-    ]);
-
-    const groupMap = new Map(
-      groups.map((g) => [String(g._id), String(g.name ?? '')]),
-    );
-    const optionMap = new Map(
-      options.map((o) => [String(o._id), String(o.name ?? '')]),
-    );
+    const [groupMap, optionMap] = await this.buildLookupMaps();
 
     return promotions.map((p) => this.mapPromotion(p, groupMap, optionMap));
   }
@@ -146,17 +153,27 @@ export class PromotionsService {
   async create(dto: CreatePromotionDto): Promise<PromotionResponse> {
     const name = normalizeName(dto.name);
     await this.assertNameUnique(name);
+    const applicableProductType = this.resolveApplicableProductType(
+      dto.applicableProductType,
+    );
     const applicableProductIds = normalizeProductIds(dto.applicableProductIds);
     const rewardGiftQuantityMode = this.resolveGiftQuantityMode(
       dto.rewardType,
       dto.rewardGiftQuantityMode,
     );
+    const rewardGiftSelectionMode = this.resolveGiftSelectionMode(
+      dto.rewardType,
+      dto.rewardGiftSelectionMode,
+    );
 
     if (dto.rewardType === 'gift') {
-      await this.validateGifts(dto.rewardGifts ?? []);
+      await this.validateGifts(dto.rewardGifts ?? [], applicableProductType);
     }
 
-    await this.validateApplicableProducts(applicableProductIds);
+    await this.validateApplicableProducts(
+      applicableProductIds,
+      applicableProductType,
+    );
     this.validateDates(dto.startDate, dto.endDate);
     this.validateDiscount(dto.rewardType, dto.rewardDiscountValue);
 
@@ -165,8 +182,10 @@ export class PromotionsService {
       description: normalizeText(dto.description),
       conditionType: dto.conditionType,
       conditionMinQuantity: dto.conditionMinQuantity,
+      applicableProductType,
       applicableProductIds,
       rewardType: dto.rewardType,
+      rewardGiftSelectionMode,
       rewardGiftQuantityMode,
       rewardGifts:
         dto.rewardType === 'gift'
@@ -199,17 +218,27 @@ export class PromotionsService {
 
     const name = normalizeName(dto.name);
     await this.assertNameUnique(name, id);
+    const applicableProductType = this.resolveApplicableProductType(
+      dto.applicableProductType,
+    );
     const applicableProductIds = normalizeProductIds(dto.applicableProductIds);
     const rewardGiftQuantityMode = this.resolveGiftQuantityMode(
       dto.rewardType,
       dto.rewardGiftQuantityMode,
     );
+    const rewardGiftSelectionMode = this.resolveGiftSelectionMode(
+      dto.rewardType,
+      dto.rewardGiftSelectionMode,
+    );
 
     if (dto.rewardType === 'gift') {
-      await this.validateGifts(dto.rewardGifts ?? []);
+      await this.validateGifts(dto.rewardGifts ?? [], applicableProductType);
     }
 
-    await this.validateApplicableProducts(applicableProductIds);
+    await this.validateApplicableProducts(
+      applicableProductIds,
+      applicableProductType,
+    );
     this.validateDates(dto.startDate, dto.endDate);
     this.validateDiscount(dto.rewardType, dto.rewardDiscountValue);
 
@@ -217,8 +246,10 @@ export class PromotionsService {
     promotion.description = normalizeText(dto.description);
     promotion.conditionType = dto.conditionType;
     promotion.conditionMinQuantity = dto.conditionMinQuantity;
+    promotion.applicableProductType = applicableProductType;
     promotion.applicableProductIds = applicableProductIds;
     promotion.rewardType = dto.rewardType;
+    promotion.rewardGiftSelectionMode = rewardGiftSelectionMode;
     promotion.rewardGiftQuantityMode = rewardGiftQuantityMode;
     promotion.rewardGifts =
       dto.rewardType === 'gift'
@@ -253,14 +284,24 @@ export class PromotionsService {
   private async buildLookupMaps(): Promise<
     [Map<string, string>, Map<string, string>]
   > {
-    const [groups, options] = await Promise.all([
-      this.groupModel.find().lean().exec() as Promise<
-        Array<{ _id?: unknown; name?: unknown }>
-      >,
-      this.optionModel.find().lean().exec() as Promise<
-        Array<{ _id?: unknown; name?: unknown }>
-      >,
-    ]);
+    const [legoGroups, bearGroups, legoOptions, bearOptions] =
+      await Promise.all([
+        this.groupModel.find().lean().exec() as Promise<
+          Array<{ _id?: unknown; name?: unknown }>
+        >,
+        this.bearGroupModel.find().lean().exec() as Promise<
+          Array<{ _id?: unknown; name?: unknown }>
+        >,
+        this.optionModel.find().lean().exec() as Promise<
+          Array<{ _id?: unknown; name?: unknown }>
+        >,
+        this.bearOptionModel.find().lean().exec() as Promise<
+          Array<{ _id?: unknown; name?: unknown }>
+        >,
+      ]);
+
+    const groups = [...legoGroups, ...bearGroups];
+    const options = [...legoOptions, ...bearOptions];
 
     return [
       new Map(groups.map((g) => [String(g._id), String(g.name ?? '')])),
@@ -275,14 +316,17 @@ export class PromotionsService {
   ): PromotionResponse {
     const rewardType =
       (source.rewardType as PromotionResponse['rewardType']) ?? 'gift';
+    const rewardGiftSelectionMode = this.resolveGiftSelectionMode(
+      rewardType,
+      source.rewardGiftSelectionMode,
+    );
     const rewardGiftQuantityMode = this.resolveGiftQuantityMode(
       rewardType,
       source.rewardGiftQuantityMode,
     );
 
-    const gifts = (Array.isArray(source.rewardGifts)
-      ? source.rewardGifts
-      : []
+    const gifts = (
+      Array.isArray(source.rewardGifts) ? source.rewardGifts : []
     ).map((g: unknown) => {
       const gift = g as GiftSource;
       const groupId = String(gift.groupId ?? '');
@@ -300,12 +344,20 @@ export class PromotionsService {
       id: String(source._id ?? source.id),
       name: String(source.name ?? ''),
       description: String(source.description ?? ''),
-      conditionType: (source.conditionType as PromotionResponse['conditionType']) ?? 'lego_quantity',
+      conditionType:
+        (source.conditionType as PromotionResponse['conditionType']) ??
+        'lego_quantity',
       conditionMinQuantity: Number(source.conditionMinQuantity ?? 1),
+      applicableProductType: this.resolveApplicableProductType(
+        source.applicableProductType,
+      ),
       applicableProductIds: Array.isArray(source.applicableProductIds)
-        ? source.applicableProductIds.map((productId) => String(productId ?? '')).filter(Boolean)
+        ? source.applicableProductIds
+            .map((productId) => String(productId ?? ''))
+            .filter(Boolean)
         : [],
       rewardType,
+      rewardGiftSelectionMode,
       rewardGiftQuantityMode,
       rewardGifts: gifts,
       rewardDiscountValue: Number(source.rewardDiscountValue ?? 0),
@@ -339,6 +391,7 @@ export class PromotionsService {
 
   private async validateGifts(
     gifts: Array<{ groupId: string; optionId: string }>,
+    applicableProductType: PromotionApplicableProductType,
   ): Promise<void> {
     if (gifts.length === 0) {
       throw new BadRequestException('Phải chọn ít nhất 1 quà tặng.');
@@ -347,10 +400,20 @@ export class PromotionsService {
     const groupIds = [...new Set(gifts.map((g) => g.groupId))];
     const optionIds = [...new Set(gifts.map((g) => g.optionId))];
 
-    const [groupCount, optionCount] = await Promise.all([
-      this.groupModel.countDocuments({ _id: { $in: groupIds } }).exec(),
-      this.optionModel.countDocuments({ _id: { $in: optionIds } }).exec(),
-    ]);
+    const [groupCount, optionCount] =
+      applicableProductType === 'bear'
+        ? await Promise.all([
+            this.bearGroupModel
+              .countDocuments({ _id: { $in: groupIds } })
+              .exec(),
+            this.bearOptionModel
+              .countDocuments({ _id: { $in: optionIds } })
+              .exec(),
+          ])
+        : await Promise.all([
+            this.groupModel.countDocuments({ _id: { $in: groupIds } }).exec(),
+            this.optionModel.countDocuments({ _id: { $in: optionIds } }).exec(),
+          ]);
 
     if (groupCount !== groupIds.length) {
       throw new BadRequestException(
@@ -364,14 +427,22 @@ export class PromotionsService {
     }
   }
 
-  private async validateApplicableProducts(productIds: string[]): Promise<void> {
+  private async validateApplicableProducts(
+    productIds: string[],
+    applicableProductType: PromotionApplicableProductType,
+  ): Promise<void> {
     if (productIds.length === 0) {
       return;
     }
 
-    const productCount = await this.legoFrameVariantModel
-      .countDocuments({ _id: { $in: productIds } })
-      .exec();
+    const productCount =
+      applicableProductType === 'bear'
+        ? await this.bearVariantModel
+            .countDocuments({ _id: { $in: productIds } })
+            .exec()
+        : await this.legoFrameVariantModel
+            .countDocuments({ _id: { $in: productIds } })
+            .exec();
 
     if (productCount !== productIds.length) {
       throw new BadRequestException(
@@ -388,17 +459,12 @@ export class PromotionsService {
       const start = new Date(startDate);
       const end = new Date(endDate);
       if (end <= start) {
-        throw new BadRequestException(
-          'Ngày kết thúc phải sau ngày bắt đầu.',
-        );
+        throw new BadRequestException('Ngày kết thúc phải sau ngày bắt đầu.');
       }
     }
   }
 
-  private validateDiscount(
-    rewardType: string,
-    value?: number,
-  ): void {
+  private validateDiscount(rewardType: string, value?: number): void {
     if (rewardType === 'discount_percent' && value !== undefined) {
       if (value < 0 || value > 100) {
         throw new BadRequestException(
@@ -406,6 +472,12 @@ export class PromotionsService {
         );
       }
     }
+  }
+
+  private resolveApplicableProductType(
+    value?: unknown,
+  ): PromotionApplicableProductType {
+    return value === 'bear' ? 'bear' : 'lego';
   }
 
   private resolveGiftQuantityMode(
@@ -416,9 +488,18 @@ export class PromotionsService {
       return 'fixed';
     }
 
-    return mode === 'multiply_by_condition'
-      ? 'multiply_by_condition'
-      : 'fixed';
+    return mode === 'multiply_by_condition' ? 'multiply_by_condition' : 'fixed';
+  }
+
+  private resolveGiftSelectionMode(
+    rewardType: string,
+    mode?: unknown,
+  ): PromotionResponse['rewardGiftSelectionMode'] {
+    if (rewardType !== 'gift') {
+      return 'all';
+    }
+
+    return mode === 'choose_one' ? 'choose_one' : 'all';
   }
 }
 
@@ -431,7 +512,9 @@ function normalizeText(value?: string) {
 }
 
 function normalizeProductIds(values?: string[]) {
-  return [...new Set((values ?? []).map((value) => value.trim()).filter(Boolean))];
+  return [
+    ...new Set((values ?? []).map((value) => value.trim()).filter(Boolean)),
+  ];
 }
 
 function escapeRegex(input: string) {

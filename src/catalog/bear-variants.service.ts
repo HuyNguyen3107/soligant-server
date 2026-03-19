@@ -7,7 +7,10 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { existsSync, unlinkSync } from 'fs';
 import { join } from 'path';
-import { Collection, CollectionDocument } from '../collections/schemas/collection.schema';
+import {
+  Collection,
+  CollectionDocument,
+} from '../collections/schemas/collection.schema';
 import { CreateBearVariantDto } from './dto/create-bear-variant.dto';
 import {
   BearVariant,
@@ -27,9 +30,15 @@ interface BearVariantSource {
   variantSymbol?: unknown;
   description?: unknown;
   image?: unknown;
+  bearQuantity?: unknown;
+  allowVariableBearCount?: unknown;
+  bearCountMin?: unknown;
+  bearCountMax?: unknown;
+  additionalBearPrice?: unknown;
   price?: unknown;
   stockQuantity?: unknown;
   lowStockThreshold?: unknown;
+  hasBackground?: unknown;
   isActive?: unknown;
   updatedAt?: unknown;
 }
@@ -58,9 +67,15 @@ export interface BearVariantResponse {
   variantSymbol: string;
   description: string;
   image: string;
+  bearQuantity: number;
+  allowVariableBearCount: boolean;
+  bearCountMin: number;
+  bearCountMax: number;
+  additionalBearPrice: number;
   price: number;
   stockQuantity: number;
   lowStockThreshold: number;
+  hasBackground: boolean;
   isActive: boolean;
   updatedAt: string;
 }
@@ -82,6 +97,7 @@ export interface PublicBearCollectionCategoryResponse {
 
 export interface PublicBearCollectionProductResponse {
   id: string;
+  productType: 'bear';
   collectionId: string;
   categoryId: string;
   categoryName: string;
@@ -89,7 +105,13 @@ export interface PublicBearCollectionProductResponse {
   variantSymbol: string;
   description: string;
   image: string;
+  bearQuantity: number;
+  allowVariableBearCount: boolean;
+  bearCountMin: number;
+  bearCountMax: number;
+  additionalBearPrice: number;
   price: number;
+  hasBackground: boolean;
   updatedAt: string;
 }
 
@@ -143,9 +165,7 @@ export class BearVariantsService {
       isActive: true,
     };
 
-    const productMatch = categoryId
-      ? { ...baseMatch, categoryId }
-      : baseMatch;
+    const productMatch = categoryId ? { ...baseMatch, categoryId } : baseMatch;
 
     const [variants, categoryStats] = await Promise.all([
       this.bearVariantModel
@@ -154,7 +174,10 @@ export class BearVariantsService {
         .lean()
         .exec() as Promise<BearVariantSource[]>,
       this.bearVariantModel
-        .aggregate<{ _id: string; productCount: number }>([
+        .aggregate<{
+          _id: string;
+          productCount: number;
+        }>([
           { $match: baseMatch },
           { $group: { _id: '$categoryId', productCount: { $sum: 1 } } },
           { $sort: { productCount: -1 } },
@@ -162,7 +185,9 @@ export class BearVariantsService {
         .exec(),
     ]);
 
-    const categoryIds = [...new Set(categoryStats.map((item) => String(item._id)))];
+    const categoryIds = [
+      ...new Set(categoryStats.map((item) => String(item._id))),
+    ];
     const categories = categoryIds.length
       ? ((await this.productCategoryModel
           .find({ _id: { $in: categoryIds } })
@@ -187,10 +212,13 @@ export class BearVariantsService {
           productCount: Number(item.productCount ?? 0),
         };
       })
-      .filter((item): item is PublicBearCollectionCategoryResponse => item !== null);
+      .filter(
+        (item): item is PublicBearCollectionCategoryResponse => item !== null,
+      );
 
     const products = variants.map((variant) => ({
       id: String(variant._id ?? variant.id),
+      productType: 'bear' as const,
       collectionId: String(variant.collectionId ?? ''),
       categoryId: String(variant.categoryId ?? ''),
       categoryName:
@@ -201,7 +229,13 @@ export class BearVariantsService {
       variantSymbol: resolveVariantSymbol(variant.variantSymbol, variant.name),
       description: String(variant.description ?? ''),
       image: String(variant.image ?? ''),
+      bearQuantity: Number(variant.bearQuantity ?? 1),
+      allowVariableBearCount: Boolean(variant.allowVariableBearCount ?? false),
+      bearCountMin: Number(variant.bearCountMin ?? 0),
+      bearCountMax: Number(variant.bearCountMax ?? 0),
+      additionalBearPrice: Number(variant.additionalBearPrice ?? 0),
       price: Number(variant.price ?? 0),
+      hasBackground: Boolean(variant.hasBackground ?? true),
       updatedAt: String(variant.updatedAt ?? new Date().toISOString()),
     }));
 
@@ -212,15 +246,14 @@ export class BearVariantsService {
     };
   }
 
-  async create(
-    dto: CreateBearVariantDto,
-  ): Promise<BearVariantResponse> {
+  async create(dto: CreateBearVariantDto): Promise<BearVariantResponse> {
     const variantSymbol = normalizeVariantSymbol(dto.variantSymbol);
 
     await this.assertCollectionExists(dto.collectionId);
     await this.assertCategoryExists(dto.categoryId);
     await this.assertVariantIsUnique(dto);
     await this.assertVariantSymbolUnique(variantSymbol);
+    const quantityConfig = this.normalizeVariableBearCount(dto);
     const inventoryConfig = this.normalizeInventoryConfig(dto);
 
     const document = new this.bearVariantModel({
@@ -230,9 +263,15 @@ export class BearVariantsService {
       variantSymbol,
       description: dto.description?.trim() ?? '',
       image: dto.image.trim(),
+      bearQuantity: quantityConfig.bearQuantity,
+      allowVariableBearCount: quantityConfig.allowVariableBearCount,
+      bearCountMin: quantityConfig.bearCountMin,
+      bearCountMax: quantityConfig.bearCountMax,
+      additionalBearPrice: quantityConfig.additionalBearPrice,
       price: dto.price,
       stockQuantity: inventoryConfig.stockQuantity,
       lowStockThreshold: inventoryConfig.lowStockThreshold,
+      hasBackground: dto.hasBackground ?? true,
       isActive: dto.isActive ?? true,
     });
 
@@ -255,6 +294,13 @@ export class BearVariantsService {
     await this.assertCategoryExists(dto.categoryId);
     await this.assertVariantIsUnique(dto, id);
     await this.assertVariantSymbolUnique(variantSymbol, id);
+    const quantityConfig = this.normalizeVariableBearCount(dto, {
+      bearQuantity: variant.bearQuantity,
+      allowVariableBearCount: variant.allowVariableBearCount,
+      bearCountMin: variant.bearCountMin,
+      bearCountMax: variant.bearCountMax,
+      additionalBearPrice: variant.additionalBearPrice,
+    });
     const inventoryConfig = this.normalizeInventoryConfig(dto, {
       stockQuantity: variant.stockQuantity,
       lowStockThreshold: variant.lowStockThreshold,
@@ -271,9 +317,15 @@ export class BearVariantsService {
     variant.variantSymbol = variantSymbol;
     variant.description = dto.description?.trim() ?? '';
     variant.image = nextImage;
+    variant.bearQuantity = quantityConfig.bearQuantity;
+    variant.allowVariableBearCount = quantityConfig.allowVariableBearCount;
+    variant.bearCountMin = quantityConfig.bearCountMin;
+    variant.bearCountMax = quantityConfig.bearCountMax;
+    variant.additionalBearPrice = quantityConfig.additionalBearPrice;
     variant.price = dto.price;
     variant.stockQuantity = inventoryConfig.stockQuantity;
     variant.lowStockThreshold = inventoryConfig.lowStockThreshold;
+    variant.hasBackground = dto.hasBackground ?? variant.hasBackground;
     variant.isActive = dto.isActive ?? true;
 
     const saved = await variant.save();
@@ -298,7 +350,10 @@ export class BearVariantsService {
   ): Promise<BearVariantResponse> {
     const [collection, category] = (await Promise.all([
       this.collectionModel.findById(String(variant.collectionId)).lean().exec(),
-      this.productCategoryModel.findById(String(variant.categoryId)).lean().exec(),
+      this.productCategoryModel
+        .findById(String(variant.categoryId))
+        .lean()
+        .exec(),
     ])) as [NamedSource | null, NamedSource | null];
 
     return this.mapVariantResponse(variant, collection, category);
@@ -307,12 +362,22 @@ export class BearVariantsService {
   private async decorateVariants(
     variants: BearVariantSource[],
   ): Promise<BearVariantResponse[]> {
-    const collectionIds = [...new Set(variants.map((variant) => String(variant.collectionId)))];
-    const categoryIds = [...new Set(variants.map((variant) => String(variant.categoryId)))];
+    const collectionIds = [
+      ...new Set(variants.map((variant) => String(variant.collectionId))),
+    ];
+    const categoryIds = [
+      ...new Set(variants.map((variant) => String(variant.categoryId))),
+    ];
 
     const [collections, categories] = await Promise.all([
-      this.collectionModel.find({ _id: { $in: collectionIds } }).lean().exec(),
-      this.productCategoryModel.find({ _id: { $in: categoryIds } }).lean().exec(),
+      this.collectionModel
+        .find({ _id: { $in: collectionIds } })
+        .lean()
+        .exec(),
+      this.productCategoryModel
+        .find({ _id: { $in: categoryIds } })
+        .lean()
+        .exec(),
     ]);
 
     const collectionsById = new Map(
@@ -339,16 +404,23 @@ export class BearVariantsService {
     return {
       id: String(variant._id ?? variant.id),
       collectionId: String(variant.collectionId ?? ''),
-      collectionName: typeof collection?.name === 'string' ? collection.name : '',
+      collectionName:
+        typeof collection?.name === 'string' ? collection.name : '',
       categoryId: String(variant.categoryId ?? ''),
       categoryName: typeof category?.name === 'string' ? category.name : '',
       name: String(variant.name ?? ''),
       variantSymbol: resolveVariantSymbol(variant.variantSymbol, variant.name),
       description: String(variant.description ?? ''),
       image: String(variant.image ?? ''),
+      bearQuantity: Number(variant.bearQuantity ?? 1),
+      allowVariableBearCount: Boolean(variant.allowVariableBearCount ?? false),
+      bearCountMin: Number(variant.bearCountMin ?? 0),
+      bearCountMax: Number(variant.bearCountMax ?? 0),
+      additionalBearPrice: Number(variant.additionalBearPrice ?? 0),
       price: Number(variant.price ?? 0),
       stockQuantity: Number(variant.stockQuantity ?? 0),
       lowStockThreshold: Number(variant.lowStockThreshold ?? 5),
+      hasBackground: Boolean(variant.hasBackground ?? true),
       isActive: Boolean(variant.isActive),
       updatedAt: String(variant.updatedAt ?? new Date().toISOString()),
     };
@@ -368,7 +440,9 @@ export class BearVariantsService {
         : Number(dto.lowStockThreshold);
 
     if (!Number.isInteger(stockQuantity) || stockQuantity < 0) {
-      throw new BadRequestException('Số lượng tồn kho phải là số nguyên từ 0 trở lên.');
+      throw new BadRequestException(
+        'Số lượng tồn kho phải là số nguyên từ 0 trở lên.',
+      );
     }
 
     if (!Number.isInteger(lowStockThreshold) || lowStockThreshold < 0) {
@@ -380,6 +454,88 @@ export class BearVariantsService {
     return {
       stockQuantity,
       lowStockThreshold,
+    };
+  }
+
+  private normalizeVariableBearCount(
+    dto: CreateBearVariantDto,
+    fallback?: {
+      bearQuantity?: number;
+      allowVariableBearCount?: boolean;
+      bearCountMin?: number;
+      bearCountMax?: number;
+      additionalBearPrice?: number;
+    },
+  ) {
+    const bearQuantity =
+      dto.bearQuantity === undefined
+        ? Number(fallback?.bearQuantity ?? 1)
+        : Number(dto.bearQuantity);
+
+    if (!Number.isInteger(bearQuantity) || bearQuantity <= 0) {
+      throw new BadRequestException(
+        'Số lượng gấu phải là số nguyên lớn hơn 0.',
+      );
+    }
+
+    const allowVariableBearCount =
+      dto.allowVariableBearCount === undefined
+        ? Boolean(fallback?.allowVariableBearCount)
+        : Boolean(dto.allowVariableBearCount);
+
+    if (!allowVariableBearCount) {
+      return {
+        bearQuantity,
+        allowVariableBearCount: false,
+        bearCountMin: 0,
+        bearCountMax: 0,
+        additionalBearPrice: 0,
+      };
+    }
+
+    const bearCountMin =
+      dto.bearCountMin === undefined
+        ? Number(fallback?.bearCountMin ?? 0)
+        : Number(dto.bearCountMin);
+    const bearCountMax =
+      dto.bearCountMax === undefined
+        ? Number(fallback?.bearCountMax ?? 0)
+        : Number(dto.bearCountMax);
+    const additionalBearPrice =
+      dto.additionalBearPrice === undefined
+        ? Number(fallback?.additionalBearPrice ?? 0)
+        : Number(dto.additionalBearPrice);
+
+    if (!Number.isInteger(bearCountMin) || bearCountMin < 0) {
+      throw new BadRequestException(
+        'Số gấu chọn thêm tối thiểu phải là số nguyên từ 0 trở lên.',
+      );
+    }
+
+    if (!Number.isInteger(bearCountMax) || bearCountMax < 0) {
+      throw new BadRequestException(
+        'Số gấu chọn thêm tối đa phải là số nguyên từ 0 trở lên.',
+      );
+    }
+
+    if (bearCountMin > bearCountMax) {
+      throw new BadRequestException(
+        'Số gấu chọn thêm tối thiểu không được vượt quá tối đa.',
+      );
+    }
+
+    if (!Number.isInteger(additionalBearPrice) || additionalBearPrice < 0) {
+      throw new BadRequestException(
+        'Giá cho mỗi gấu thêm phải là số nguyên từ 0 trở lên.',
+      );
+    }
+
+    return {
+      bearQuantity,
+      allowVariableBearCount: true,
+      bearCountMin,
+      bearCountMax,
+      additionalBearPrice,
     };
   }
 
@@ -397,7 +553,9 @@ export class BearVariantsService {
   }
 
   private async assertCollectionExists(collectionId: string): Promise<void> {
-    const exists = await this.collectionModel.exists({ _id: collectionId }).exec();
+    const exists = await this.collectionModel
+      .exists({ _id: collectionId })
+      .exec();
     if (!exists) {
       throw new BadRequestException('Bộ sưu tập không tồn tại.');
     }
@@ -468,7 +626,10 @@ function escapeRegex(input: string) {
 }
 
 function normalizeVariantSymbol(value: string): string {
-  const normalized = value.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const normalized = value
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, '');
 
   if (!normalized) {
     throw new BadRequestException('Ký hiệu biến thể không hợp lệ.');

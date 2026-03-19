@@ -49,6 +49,12 @@ export class CreatePromotionDto {
   @Min(1, { message: 'Số lượng tối thiểu phải từ 1 trở lên.' })
   conditionMinQuantity!: number;
 
+  @IsEnum(['lego', 'bear'], {
+    message: 'Loại sản phẩm áp dụng phải là "lego" hoặc "bear".',
+  })
+  @IsOptional()
+  applicableProductType?: 'lego' | 'bear';
+
   @IsOptional()
   @IsArray({ message: 'Danh sách sản phẩm áp dụng phải là mảng.' })
   @IsMongoId({ each: true, message: 'Sản phẩm áp dụng không hợp lệ.' })
@@ -59,6 +65,13 @@ export class CreatePromotionDto {
       'Loại phần thưởng phải là "gift", "discount_fixed" hoặc "discount_percent".',
   })
   rewardType!: 'gift' | 'discount_fixed' | 'discount_percent';
+
+  @ValidateIf((dto) => dto.rewardType === 'gift')
+  @IsEnum(['all', 'choose_one'], {
+    message: 'Chế độ nhận quà phải là "all" hoặc "choose_one".',
+  })
+  @IsOptional()
+  rewardGiftSelectionMode?: 'all' | 'choose_one';
 
   @ValidateIf((dto) => dto.rewardType === 'gift')
   @IsEnum(['fixed', 'multiply_by_condition'], {

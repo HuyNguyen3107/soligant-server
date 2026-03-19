@@ -29,6 +29,21 @@ export class BearVariant {
   @Prop({ required: true, trim: true })
   image!: string;
 
+  @Prop({ default: 1, min: 1 })
+  bearQuantity!: number;
+
+  @Prop({ default: false })
+  allowVariableBearCount!: boolean;
+
+  @Prop({ default: 0, min: 0 })
+  bearCountMin!: number;
+
+  @Prop({ default: 0, min: 0 })
+  bearCountMax!: number;
+
+  @Prop({ default: 0, min: 0 })
+  additionalBearPrice!: number;
+
   @Prop({ required: true, min: 1 })
   price!: number;
 
@@ -37,6 +52,9 @@ export class BearVariant {
 
   @Prop({ default: 5, min: 0 })
   lowStockThreshold!: number;
+
+  @Prop({ default: true })
+  hasBackground!: boolean;
 
   @Prop({ default: true })
   isActive!: boolean;

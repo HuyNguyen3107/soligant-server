@@ -1,6 +1,18 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import {
+  BearCustomizationGroup,
+  BearCustomizationGroupSchema,
+} from '../catalog/schemas/bear-customization-group.schema';
+import {
+  BearCustomizationOption,
+  BearCustomizationOptionSchema,
+} from '../catalog/schemas/bear-customization-option.schema';
+import {
+  BearVariant,
+  BearVariantSchema,
+} from '../catalog/schemas/bear-variant.schema';
+import {
   LegoCustomizationGroup,
   LegoCustomizationGroupSchema,
 } from '../catalog/schemas/lego-customization-group.schema';
@@ -21,8 +33,23 @@ import { Promotion, PromotionSchema } from './schemas/promotion.schema';
   imports: [
     MongooseModule.forFeature([
       { name: Promotion.name, schema: PromotionSchema },
-      { name: LegoCustomizationGroup.name, schema: LegoCustomizationGroupSchema },
-      { name: LegoCustomizationOption.name, schema: LegoCustomizationOptionSchema },
+      {
+        name: BearCustomizationGroup.name,
+        schema: BearCustomizationGroupSchema,
+      },
+      {
+        name: BearCustomizationOption.name,
+        schema: BearCustomizationOptionSchema,
+      },
+      { name: BearVariant.name, schema: BearVariantSchema },
+      {
+        name: LegoCustomizationGroup.name,
+        schema: LegoCustomizationGroupSchema,
+      },
+      {
+        name: LegoCustomizationOption.name,
+        schema: LegoCustomizationOptionSchema,
+      },
       { name: LegoFrameVariant.name, schema: LegoFrameVariantSchema },
     ]),
   ],

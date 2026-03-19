@@ -44,6 +44,9 @@ export class AddonOption {
   @Prop({ type: [String], default: [] })
   applicableProductIds!: string[];
 
+  @Prop({ enum: ['lego', 'bear'], default: 'lego' })
+  applicableProductType!: 'lego' | 'bear';
+
   @Prop({ type: [AddonOptionFieldSchema], default: [] })
   fields!: AddonOptionField[];
 

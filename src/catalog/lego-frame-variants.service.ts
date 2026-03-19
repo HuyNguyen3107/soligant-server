@@ -7,7 +7,10 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { existsSync, unlinkSync } from 'fs';
 import { join } from 'path';
-import { Collection, CollectionDocument } from '../collections/schemas/collection.schema';
+import {
+  Collection,
+  CollectionDocument,
+} from '../collections/schemas/collection.schema';
 import { CreateLegoFrameVariantDto } from './dto/create-lego-frame-variant.dto';
 import {
   LegoFrameVariant,
@@ -94,6 +97,7 @@ export interface PublicCollectionCategoryResponse {
 
 export interface PublicCollectionProductResponse {
   id: string;
+  productType: 'lego';
   collectionId: string;
   categoryId: string;
   categoryName: string;
@@ -161,9 +165,7 @@ export class LegoFrameVariantsService {
       isActive: true,
     };
 
-    const productMatch = categoryId
-      ? { ...baseMatch, categoryId }
-      : baseMatch;
+    const productMatch = categoryId ? { ...baseMatch, categoryId } : baseMatch;
 
     const [variants, categoryStats] = await Promise.all([
       this.legoFrameVariantModel
@@ -172,15 +174,16 @@ export class LegoFrameVariantsService {
         .lean()
         .exec() as Promise<LegoFrameVariantSource[]>,
       this.legoFrameVariantModel
-        .aggregate<{ _id: string; productCount: number }>([
-          { $match: baseMatch },
-          { $group: { _id: '$categoryId', productCount: { $sum: 1 } } },
-          { $sort: { productCount: -1 } },
-        ])
+        .aggregate<{
+          _id: string;
+          productCount: number;
+        }>([{ $match: baseMatch }, { $group: { _id: '$categoryId', productCount: { $sum: 1 } } }, { $sort: { productCount: -1 } }])
         .exec(),
     ]);
 
-    const categoryIds = [...new Set(categoryStats.map((item) => String(item._id)))];
+    const categoryIds = [
+      ...new Set(categoryStats.map((item) => String(item._id))),
+    ];
     const categories = categoryIds.length
       ? ((await this.productCategoryModel
           .find({ _id: { $in: categoryIds } })
@@ -205,10 +208,13 @@ export class LegoFrameVariantsService {
           productCount: Number(item.productCount ?? 0),
         };
       })
-      .filter((item): item is PublicCollectionCategoryResponse => item !== null);
+      .filter(
+        (item): item is PublicCollectionCategoryResponse => item !== null,
+      );
 
     const products = variants.map((variant) => ({
       id: String(variant._id ?? variant.id),
+      productType: 'lego' as const,
       collectionId: String(variant.collectionId ?? ''),
       categoryId: String(variant.categoryId ?? ''),
       categoryName:
@@ -336,7 +342,10 @@ export class LegoFrameVariantsService {
   ): Promise<LegoFrameVariantResponse> {
     const [collection, category] = (await Promise.all([
       this.collectionModel.findById(String(variant.collectionId)).lean().exec(),
-      this.productCategoryModel.findById(String(variant.categoryId)).lean().exec(),
+      this.productCategoryModel
+        .findById(String(variant.categoryId))
+        .lean()
+        .exec(),
     ])) as [NamedSource | null, NamedSource | null];
 
     return this.mapVariantResponse(variant, collection, category);
@@ -345,12 +354,22 @@ export class LegoFrameVariantsService {
   private async decorateVariants(
     variants: LegoFrameVariantSource[],
   ): Promise<LegoFrameVariantResponse[]> {
-    const collectionIds = [...new Set(variants.map((variant) => String(variant.collectionId)))];
-    const categoryIds = [...new Set(variants.map((variant) => String(variant.categoryId)))];
+    const collectionIds = [
+      ...new Set(variants.map((variant) => String(variant.collectionId))),
+    ];
+    const categoryIds = [
+      ...new Set(variants.map((variant) => String(variant.categoryId))),
+    ];
 
     const [collections, categories] = await Promise.all([
-      this.collectionModel.find({ _id: { $in: collectionIds } }).lean().exec(),
-      this.productCategoryModel.find({ _id: { $in: categoryIds } }).lean().exec(),
+      this.collectionModel
+        .find({ _id: { $in: collectionIds } })
+        .lean()
+        .exec(),
+      this.productCategoryModel
+        .find({ _id: { $in: categoryIds } })
+        .lean()
+        .exec(),
     ]);
 
     const collectionsById = new Map(
@@ -377,7 +396,8 @@ export class LegoFrameVariantsService {
     return {
       id: String(variant._id ?? variant.id),
       collectionId: String(variant.collectionId ?? ''),
-      collectionName: typeof collection?.name === 'string' ? collection.name : '',
+      collectionName:
+        typeof collection?.name === 'string' ? collection.name : '',
       categoryId: String(variant.categoryId ?? ''),
       categoryName: typeof category?.name === 'string' ? category.name : '',
       name: String(variant.name ?? ''),
@@ -412,7 +432,9 @@ export class LegoFrameVariantsService {
         : Number(dto.lowStockThreshold);
 
     if (!Number.isInteger(stockQuantity) || stockQuantity < 0) {
-      throw new BadRequestException('Số lượng tồn kho phải là số nguyên từ 0 trở lên.');
+      throw new BadRequestException(
+        'Số lượng tồn kho phải là số nguyên từ 0 trở lên.',
+      );
     }
 
     if (!Number.isInteger(lowStockThreshold) || lowStockThreshold < 0) {
@@ -489,7 +511,9 @@ export class LegoFrameVariantsService {
   }
 
   private async assertCollectionExists(collectionId: string): Promise<void> {
-    const exists = await this.collectionModel.exists({ _id: collectionId }).exec();
+    const exists = await this.collectionModel
+      .exists({ _id: collectionId })
+      .exec();
     if (!exists) {
       throw new BadRequestException('Bộ sưu tập không tồn tại.');
     }
@@ -561,7 +585,10 @@ function escapeRegex(input: string) {
 }
 
 function normalizeVariantSymbol(value: string): string {
-  const normalized = value.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const normalized = value
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, '');
 
   if (!normalized) {
     throw new BadRequestException('Ký hiệu biến thể không hợp lệ.');

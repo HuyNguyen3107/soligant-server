@@ -66,6 +66,12 @@ export class CreateAddonOptionDto {
   @IsMongoId({ each: true, message: 'Sản phẩm áp dụng không hợp lệ.' })
   applicableProductIds?: string[];
 
+  @IsEnum(['lego', 'bear'], {
+    message: 'Loai san pham ap dung phai la lego hoac bear.',
+  })
+  @IsOptional()
+  applicableProductType?: 'lego' | 'bear';
+
   @ValidateIf((dto) => dto.optionType === 'customizable')
   @IsArray({ message: 'Danh sách trường tùy chỉnh phải là mảng.' })
   @ArrayMinSize(1, { message: 'Ấn phẩm tùy chỉnh phải có ít nhất 1 trường.' })

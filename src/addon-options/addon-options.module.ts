@@ -4,12 +4,13 @@ import {
   LegoFrameVariant,
   LegoFrameVariantSchema,
 } from '../catalog/schemas/lego-frame-variant.schema';
+import {
+  BearVariant,
+  BearVariantSchema,
+} from '../catalog/schemas/bear-variant.schema';
 import { AddonOptionsController } from './addon-options.controller';
 import { AddonOptionsService } from './addon-options.service';
-import {
-  AddonOption,
-  AddonOptionSchema,
-} from './schemas/addon-option.schema';
+import { AddonOption, AddonOptionSchema } from './schemas/addon-option.schema';
 import { PublicAddonOptionsController } from './public-addon-options.controller';
 
 @Module({
@@ -17,6 +18,7 @@ import { PublicAddonOptionsController } from './public-addon-options.controller'
     MongooseModule.forFeature([
       { name: AddonOption.name, schema: AddonOptionSchema },
       { name: LegoFrameVariant.name, schema: LegoFrameVariantSchema },
+      { name: BearVariant.name, schema: BearVariantSchema },
     ]),
   ],
   controllers: [AddonOptionsController, PublicAddonOptionsController],

@@ -31,11 +31,23 @@ export class Promotion {
   @Prop({ required: true, min: 1 })
   conditionMinQuantity!: number;
 
+  @Prop({ required: true, enum: ['lego', 'bear'], default: 'lego' })
+  applicableProductType!: 'lego' | 'bear';
+
   @Prop({ type: [String], default: [] })
   applicableProductIds!: string[];
 
-  @Prop({ required: true, enum: ['gift', 'discount_fixed', 'discount_percent'] })
+  @Prop({
+    required: true,
+    enum: ['gift', 'discount_fixed', 'discount_percent'],
+  })
   rewardType!: 'gift' | 'discount_fixed' | 'discount_percent';
+
+  @Prop({
+    enum: ['all', 'choose_one'],
+    default: 'all',
+  })
+  rewardGiftSelectionMode!: 'all' | 'choose_one';
 
   @Prop({
     enum: ['fixed', 'multiply_by_condition'],
