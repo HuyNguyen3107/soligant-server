@@ -295,5 +295,47 @@ export const SYSTEM_PERMISSIONS: PermissionDef[] = [
     group: 'Quản lý Backgrounds',
   },
 
+  // ── Quản lý Gấu ───────────────────────────────────────────────────────────
+  {
+    key: 'bear-variants.view',
+    label: 'Xem danh sách biến thể gấu',
+    group: 'Quản lý Gấu',
+  },
+  {
+    key: 'bear-variants.create',
+    label: 'Tạo biến thể gấu',
+    group: 'Quản lý Gấu',
+  },
+  {
+    key: 'bear-variants.edit',
+    label: 'Chỉnh sửa biến thể gấu',
+    group: 'Quản lý Gấu',
+  },
+  {
+    key: 'bear-variants.delete',
+    label: 'Xóa biến thể gấu',
+    group: 'Quản lý Gấu',
+  },
+  {
+    key: 'bear-customizations.view',
+    label: 'Xem tùy chỉnh Gấu',
+    group: 'Quản lý Gấu',
+  },
+  {
+    key: 'bear-customizations.create',
+    label: 'Tạo tùy chỉnh Gấu',
+    group: 'Quản lý Gấu',
+  },
+  {
+    key: 'bear-customizations.edit',
+    label: 'Cập nhật tùy chỉnh Gấu',
+    group: 'Quản lý Gấu',
+  },
+  {
+    key: 'bear-customizations.delete',
+    label: 'Xóa tùy chỉnh Gấu',
+    group: 'Quản lý Gấu',
+  },
+
   // ── Thêm nhóm quyền mới ở đây khi phát triển thêm tính năng ───────────────
 ];

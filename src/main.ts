@@ -1,11 +1,17 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { NestExpressApplication } from '@nestjs/platform-express';
+import { json, urlencoded } from 'express';
 import { join } from 'path';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  const requestBodyLimit = process.env.REQUEST_BODY_LIMIT ?? '10mb';
+
+  // Increase body parser limits so large order payloads (customizations/images) are accepted.
+  app.use(json({ limit: requestBodyLimit }));
+  app.use(urlencoded({ extended: true, limit: requestBodyLimit }));
 
   // Serve static uploads (both /uploads/... and /api/uploads/... are valid)
   app.useStaticAssets(join(process.cwd(), 'public'), { prefix: '/' });
