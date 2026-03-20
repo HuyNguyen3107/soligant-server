@@ -9,6 +9,8 @@ export type OrderStatus =
   | 'completed'
   | 'cancelled';
 
+export type OrderShippingPayer = 'customer' | 'shop';
+
 @Schema({ _id: false })
 export class OrderPricingSummary {
   @Prop({ required: true, min: 0 })
@@ -102,8 +104,9 @@ export class OrderCustomerInfoOption {
   value!: string;
 }
 
-export const OrderCustomerInfoOptionSchema =
-  SchemaFactory.createForClass(OrderCustomerInfoOption);
+export const OrderCustomerInfoOptionSchema = SchemaFactory.createForClass(
+  OrderCustomerInfoOption,
+);
 
 @Schema({ _id: false })
 export class OrderCustomerInfoEntry {
@@ -115,7 +118,14 @@ export class OrderCustomerInfoEntry {
 
   @Prop({
     required: true,
-    enum: ['short_text', 'long_text', 'select', 'image_upload', 'number', 'date'],
+    enum: [
+      'short_text',
+      'long_text',
+      'select',
+      'image_upload',
+      'number',
+      'date',
+    ],
     default: 'short_text',
   })
   fieldType!:
@@ -145,8 +155,9 @@ export class OrderCustomerInfoEntry {
   value!: string | string[];
 }
 
-export const OrderCustomerInfoEntrySchema =
-  SchemaFactory.createForClass(OrderCustomerInfoEntry);
+export const OrderCustomerInfoEntrySchema = SchemaFactory.createForClass(
+  OrderCustomerInfoEntry,
+);
 
 @Schema({ _id: false })
 export class OrderAppliedGift {
@@ -177,6 +188,9 @@ export class Order {
     default: 'pending',
   })
   status!: OrderStatus;
+
+  @Prop({ required: true, enum: ['customer', 'shop'], default: 'customer' })
+  shippingPayer!: OrderShippingPayer;
 
   @Prop({ type: [OrderItemSummarySchema], default: [] })
   items!: OrderItemSummary[];

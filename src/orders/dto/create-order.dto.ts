@@ -1,6 +1,7 @@
 import { Type } from 'class-transformer';
 import {
   ArrayMinSize,
+  IsIn,
   IsArray,
   IsNotEmpty,
   IsNumber,
@@ -74,4 +75,11 @@ export class CreateOrderDto {
   @Type(() => AppliedGiftDto)
   @IsOptional()
   appliedGifts?: AppliedGiftDto[];
+
+  @IsString({ message: 'Thông tin người trả phí ship không hợp lệ.' })
+  @IsIn(['customer', 'shop'], {
+    message: 'Người trả phí ship phải là customer hoặc shop.',
+  })
+  @IsOptional()
+  shippingPayer?: 'customer' | 'shop';
 }

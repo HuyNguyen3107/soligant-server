@@ -17,6 +17,7 @@ import { CreateOrderDto } from './dto/create-order.dto';
 import {
   Order,
   type OrderDocument,
+  type OrderShippingPayer,
   type OrderStatus,
 } from './schemas/order.schema';
 import {
@@ -94,6 +95,7 @@ interface OrderSource {
   dateKey?: unknown;
   variantSymbol?: unknown;
   status?: unknown;
+  shippingPayer?: unknown;
   items?: unknown[];
   customerInfoEntries?: unknown[];
   itemsCount?: unknown;
@@ -173,6 +175,7 @@ export interface OrderResponse {
   dateKey: string;
   variantSymbol: string;
   status: OrderStatus;
+  shippingPayer: OrderShippingPayer;
   itemsCount: number;
   pricingSummary: OrderPricingSummaryResponse;
   items: OrderItemResponse[];
@@ -208,12 +211,15 @@ export class OrdersService {
 
   async createPublic(dto: CreateOrderDto): Promise<OrderResponse> {
     const normalizedItems = this.normalizeItems(dto.items);
+    const shippingPayer = normalizeShippingPayer(dto.shippingPayer);
     const customerInfoEntries = this.normalizeCustomerInfoEntries(
       dto.customerInfoEntries,
     );
 
     if (normalizedItems.length === 0) {
-      throw new BadRequestException('Đơn hàng phải có ít nhất 1 sản phẩm hợp lệ.');
+      throw new BadRequestException(
+        'Đơn hàng phải có ít nhất 1 sản phẩm hợp lệ.',
+      );
     }
 
     const appliedGifts = this.normalizeAppliedGifts(dto.appliedGifts);
@@ -228,7 +234,8 @@ export class OrdersService {
 
     try {
       const primarySymbol = normalizedItems[0].variantSymbol;
-      const { dateKey, orderCode } = await this.generateOrderCode(primarySymbol);
+      const { dateKey, orderCode } =
+        await this.generateOrderCode(primarySymbol);
 
       const itemsSubtotal = normalizedItems.reduce(
         (sum, item) => sum + item.subtotal,
@@ -245,6 +252,7 @@ export class OrdersService {
         dateKey,
         variantSymbol: primarySymbol,
         status: 'pending',
+        shippingPayer,
         items: normalizedItems,
         customerInfoEntries,
         itemsCount: normalizedItems.length,
@@ -307,10 +315,11 @@ export class OrdersService {
       return this.mapOrder(order.toObject() as OrderSource);
     }
 
-    const customizationDemand = this.buildCustomizationOptionDemandFromStoredItems(
-      Array.isArray(order.items) ? order.items : [],
-      Array.isArray(order.appliedGifts) ? order.appliedGifts : [],
-    );
+    const customizationDemand =
+      this.buildCustomizationOptionDemandFromStoredItems(
+        Array.isArray(order.items) ? order.items : [],
+        Array.isArray(order.appliedGifts) ? order.appliedGifts : [],
+      );
 
     let stockAction: 'consume' | 'restore' | null = null;
 
@@ -330,9 +339,13 @@ export class OrdersService {
       saved = (await order.save()).toObject() as OrderSource;
     } catch (error) {
       if (stockAction === 'restore') {
-        await this.consumeCustomizationOptionDemand(customizationDemand).catch(() => undefined);
+        await this.consumeCustomizationOptionDemand(customizationDemand).catch(
+          () => undefined,
+        );
       } else if (stockAction === 'consume') {
-        await this.restoreCustomizationOptionDemand(customizationDemand).catch(() => undefined);
+        await this.restoreCustomizationOptionDemand(customizationDemand).catch(
+          () => undefined,
+        );
       }
 
       throw error;
@@ -341,7 +354,9 @@ export class OrdersService {
     return this.mapOrder(saved);
   }
 
-  private buildInventoryDemand(items: OrderItemResponse[]): Map<string, number> {
+  private buildInventoryDemand(
+    items: OrderItemResponse[],
+  ): Map<string, number> {
     const demand = new Map<string, number>();
 
     items.forEach((item) => {
@@ -356,7 +371,9 @@ export class OrdersService {
     return demand;
   }
 
-  private buildInventoryDemandFromStoredItems(items: unknown[]): Map<string, number> {
+  private buildInventoryDemandFromStoredItems(
+    items: unknown[],
+  ): Map<string, number> {
     const demand = new Map<string, number>();
 
     items.forEach((item) => {
@@ -506,7 +523,9 @@ export class OrdersService {
         if (consumed.length > 0) {
           await this.restoreCustomizationOptionDemand(
             new Map(
-              consumed.map((entry) => [entry.optionId, entry.quantity] as const),
+              consumed.map(
+                (entry) => [entry.optionId, entry.quantity] as const,
+              ),
             ),
           );
         }
@@ -554,7 +573,9 @@ export class OrdersService {
     );
   }
 
-  private async consumeInventoryDemand(demand: Map<string, number>): Promise<void> {
+  private async consumeInventoryDemand(
+    demand: Map<string, number>,
+  ): Promise<void> {
     if (demand.size === 0) {
       return;
     }
@@ -577,7 +598,13 @@ export class OrdersService {
 
       if (!updated) {
         if (consumed.length > 0) {
-          await this.restoreInventoryDemand(new Map(consumed.map((entry) => [entry.productId, entry.quantity] as const)));
+          await this.restoreInventoryDemand(
+            new Map(
+              consumed.map(
+                (entry) => [entry.productId, entry.quantity] as const,
+              ),
+            ),
+          );
         }
 
         const variant = (await this.legoFrameVariantModel
@@ -603,7 +630,9 @@ export class OrdersService {
     }
   }
 
-  private async restoreInventoryDemand(demand: Map<string, number>): Promise<void> {
+  private async restoreInventoryDemand(
+    demand: Map<string, number>,
+  ): Promise<void> {
     if (demand.size === 0) {
       return;
     }
@@ -668,15 +697,19 @@ export class OrdersService {
 
     const dateParts = formatter.formatToParts(now);
 
-    const year = dateParts.find((part) => part.type === 'year')?.value ?? '0000';
-    const month = dateParts.find((part) => part.type === 'month')?.value ?? '00';
+    const year =
+      dateParts.find((part) => part.type === 'year')?.value ?? '0000';
+    const month =
+      dateParts.find((part) => part.type === 'month')?.value ?? '00';
     const day = dateParts.find((part) => part.type === 'day')?.value ?? '00';
 
     // Requirement format: YYYYDDMM (e.g. 20261403 for 14/03/2026)
     return `${year}${day}${month}`;
   }
 
-  private normalizeItems(items: Record<string, unknown>[]): OrderItemResponse[] {
+  private normalizeItems(
+    items: Record<string, unknown>[],
+  ): OrderItemResponse[] {
     return items
       .map((item) => {
         const rawItem = toRecord(item);
@@ -693,10 +726,13 @@ export class OrdersService {
           .filter(Boolean)
           .slice(0, 50);
 
-        const additionalOptionsPrice = additionalOptions.reduce((sum, option) => {
-          const price = normalizeMoney(toRecord(option).price);
-          return sum + price;
-        }, 0);
+        const additionalOptionsPrice = additionalOptions.reduce(
+          (sum, option) => {
+            const price = normalizeMoney(toRecord(option).price);
+            return sum + price;
+          },
+          0,
+        );
 
         const customizationSubtotal = normalizeMoney(rawPricingSummary.total);
         const subtotal = customizationSubtotal + additionalOptionsPrice;
@@ -768,10 +804,13 @@ export class OrdersService {
       dateKey: String(source.dateKey ?? ''),
       variantSymbol: resolveVariantSymbol(source.variantSymbol, ''),
       status: normalizeOrderStatus(source.status),
+      shippingPayer: normalizeShippingPayer(source.shippingPayer),
       itemsCount: Math.max(1, Number(source.itemsCount ?? items.length ?? 1)),
       pricingSummary: {
         subtotal: normalizeMoney(pricingSummary.subtotal),
-        productDiscountTotal: normalizeMoney(pricingSummary.productDiscountTotal),
+        productDiscountTotal: normalizeMoney(
+          pricingSummary.productDiscountTotal,
+        ),
         orderDiscountTotal: normalizeMoney(pricingSummary.orderDiscountTotal),
         shippingName: String(pricingSummary.shippingName ?? ''),
         shippingFee: normalizeMoney(pricingSummary.shippingFee),
@@ -803,15 +842,19 @@ export class OrdersService {
     }
 
     const shippingFee = Math.max(0, Number(dto.shippingFee ?? 0));
-    const shippingName = String(dto.shippingName ?? '').trim().slice(0, 200);
+    const shippingName = String(dto.shippingName ?? '')
+      .trim()
+      .slice(0, 200);
+    const shippingPayer = normalizeShippingPayer(order.shippingPayer);
     const pricingSummary = toRecord(order.pricingSummary);
+    const chargedShippingFee = shippingPayer === 'customer' ? shippingFee : 0;
 
     const finalTotal = Math.max(
       0,
       normalizeMoney(pricingSummary.subtotal) -
         normalizeMoney(pricingSummary.productDiscountTotal) -
         normalizeMoney(pricingSummary.orderDiscountTotal) +
-        shippingFee,
+        chargedShippingFee,
     );
 
     const updated = (await this.orderModel
@@ -847,10 +890,15 @@ export class OrdersService {
       productImage: toStringValue(source.productImage),
       categoryName: toStringValue(source.categoryName),
       productSize: toStringValue(source.productSize),
-      variantSymbol: resolveVariantSymbol(source.variantSymbol, source.productName),
+      variantSymbol: resolveVariantSymbol(
+        source.variantSymbol,
+        source.productName,
+      ),
       backgroundName: toStringValue(source.backgroundName),
       totalLegoCount: toIntegerValue(source.totalLegoCount),
-      selectedAdditionalLegoCount: toIntegerValue(source.selectedAdditionalLegoCount),
+      selectedAdditionalLegoCount: toIntegerValue(
+        source.selectedAdditionalLegoCount,
+      ),
       customizationSubtotal: normalizeMoney(source.customizationSubtotal),
       additionalOptionsPrice: normalizeMoney(source.additionalOptionsPrice),
       subtotal: normalizeMoney(source.subtotal),
@@ -1010,6 +1058,14 @@ function normalizeOrderStatus(value: unknown): OrderStatus {
   return 'pending';
 }
 
+function normalizeShippingPayer(value: unknown): OrderShippingPayer {
+  if (value === 'shop') {
+    return 'shop';
+  }
+
+  return 'customer';
+}
+
 function normalizeCustomerInfoFieldType(value: unknown): CustomerInfoFieldType {
   if (
     value === 'short_text' ||
@@ -1025,7 +1081,9 @@ function normalizeCustomerInfoFieldType(value: unknown): CustomerInfoFieldType {
   return 'short_text';
 }
 
-function normalizeCustomerInfoSelectType(value: unknown): CustomerInfoSelectType {
+function normalizeCustomerInfoSelectType(
+  value: unknown,
+): CustomerInfoSelectType {
   if (value === 'dropdown' || value === 'radio' || value === 'checkbox') {
     return value;
   }
@@ -1047,14 +1105,12 @@ function normalizeCustomerInfoFieldValue(
         ? value.split(',')
         : [];
 
-    return [...new Set(rawValues.map((item) => normalizeText(item)).filter(Boolean))].filter(
-      (item) => optionSet.size === 0 || optionSet.has(item),
-    );
+    return [
+      ...new Set(rawValues.map((item) => normalizeText(item)).filter(Boolean)),
+    ].filter((item) => optionSet.size === 0 || optionSet.has(item));
   }
 
-  const normalized = normalizeText(
-    Array.isArray(value) ? value[0] : value,
-  );
+  const normalized = normalizeText(Array.isArray(value) ? value[0] : value);
 
   if (fieldType === 'select') {
     const optionSet = new Set(options.map((option) => option.value));
@@ -1081,9 +1137,7 @@ function buildCustomerInfoFallbackKey(
 }
 
 function normalizeOrderCodeForLookup(value: unknown): string {
-  return normalizeText(value)
-    .toUpperCase()
-    .replace(/\s+/g, '');
+  return normalizeText(value).toUpperCase().replace(/\s+/g, '');
 }
 
 function escapeRegex(input: string) {

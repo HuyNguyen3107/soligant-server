@@ -239,6 +239,28 @@ export const SYSTEM_PERMISSIONS: PermissionDef[] = [
     group: 'Đơn hàng',
   },
 
+  // ── Quản lý feedback ─────────────────────────────────────────────────────
+  {
+    key: 'feedbacks.view',
+    label: 'Xem danh sách feedback',
+    group: 'Quản lý Feedback',
+  },
+  {
+    key: 'feedbacks.create',
+    label: 'Tạo feedback mới',
+    group: 'Quản lý Feedback',
+  },
+  {
+    key: 'feedbacks.edit',
+    label: 'Cập nhật feedback',
+    group: 'Quản lý Feedback',
+  },
+  {
+    key: 'feedbacks.delete',
+    label: 'Xóa feedback',
+    group: 'Quản lý Feedback',
+  },
+
   // ── Quản lý kho ───────────────────────────────────────────────────────────
   {
     key: 'inventory.view',

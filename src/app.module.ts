@@ -15,6 +15,7 @@ import { AddonOptionsModule } from './addon-options/addon-options.module';
 import { OrdersModule } from './orders/orders.module';
 import { CustomerOrderFieldsModule } from './customer-order-fields/customer-order-fields.module';
 import { InventoryModule } from './inventory/inventory.module';
+import { FeedbacksModule } from './feedbacks/feedbacks.module';
 
 @Module({
   imports: [
@@ -48,6 +49,7 @@ import { InventoryModule } from './inventory/inventory.module';
     CustomerOrderFieldsModule,
     OrdersModule,
     InventoryModule,
+    FeedbacksModule,
   ],
 })
 export class AppModule {}
