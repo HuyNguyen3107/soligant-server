@@ -17,6 +17,9 @@ export class Collection {
   @Prop({ trim: true, default: '' })
   thumbnail!: string;
 
+  @Prop({ type: Object, default: null })
+  thumbnailTransform?: { x: number; y: number; scale: number; aspect: number } | null;
+
   @Prop({ default: true })
   isActive!: boolean;
 

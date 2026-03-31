@@ -4,7 +4,25 @@ import {
   IsOptional,
   IsString,
   MaxLength,
+  IsNumber,
+  ValidateNested,
+  IsObject,
 } from 'class-validator';
+import { Type } from 'class-transformer';
+
+class ThumbnailTransformDto {
+  @IsNumber()
+  x!: number;
+
+  @IsNumber()
+  y!: number;
+
+  @IsNumber()
+  scale!: number;
+
+  @IsNumber()
+  aspect!: number;
+}
 
 export class CreateCollectionDto {
   @IsString()
@@ -33,4 +51,10 @@ export class CreateCollectionDto {
   @IsBoolean()
   @IsOptional()
   isFeatured?: boolean;
+
+  @IsOptional()
+  @IsObject()
+  @ValidateNested()
+  @Type(() => ThumbnailTransformDto)
+  thumbnailTransform?: ThumbnailTransformDto | null;
 }
