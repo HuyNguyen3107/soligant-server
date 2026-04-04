@@ -39,9 +39,11 @@ interface PromotionSource {
   description?: unknown;
   conditionType?: unknown;
   conditionMinQuantity?: unknown;
+  conditionMaxQuantity?: unknown;
   applicableProductType?: unknown;
   applicableProductIds?: unknown[];
-  rewardType?: unknown;
+  rewardTypes?: unknown;
+  rewardType?: unknown; // backward compat for old documents
   rewardGiftSelectionMode?: unknown;
   rewardGiftQuantityMode?: unknown;
   rewardGifts?: unknown[];
@@ -75,9 +77,12 @@ export interface PromotionResponse {
   description: string;
   conditionType: 'lego_quantity' | 'set_quantity';
   conditionMinQuantity: number;
+  conditionMaxQuantity: number | null;
   applicableProductType: PromotionApplicableProductType;
   applicableProductIds: string[];
-  rewardType: 'gift' | 'discount_fixed' | 'discount_percent';
+  rewardTypes: Array<
+    'gift' | 'discount_fixed' | 'discount_percent' | 'freeship'
+  >;
   rewardGiftSelectionMode: 'all' | 'choose_one';
   rewardGiftQuantityMode: 'fixed' | 'multiply_by_condition';
   rewardGifts: PromotionGiftResponse[];
@@ -157,16 +162,20 @@ export class PromotionsService {
       dto.applicableProductType,
     );
     const applicableProductIds = normalizeProductIds(dto.applicableProductIds);
+    const hasGift = dto.rewardTypes.includes('gift');
+    const hasDiscount = dto.rewardTypes.some((t) =>
+      ['discount_fixed', 'discount_percent'].includes(t),
+    );
     const rewardGiftQuantityMode = this.resolveGiftQuantityMode(
-      dto.rewardType,
+      hasGift,
       dto.rewardGiftQuantityMode,
     );
     const rewardGiftSelectionMode = this.resolveGiftSelectionMode(
-      dto.rewardType,
+      hasGift,
       dto.rewardGiftSelectionMode,
     );
 
-    if (dto.rewardType === 'gift') {
+    if (hasGift) {
       await this.validateGifts(dto.rewardGifts ?? [], applicableProductType);
     }
 
@@ -175,28 +184,31 @@ export class PromotionsService {
       applicableProductType,
     );
     this.validateDates(dto.startDate, dto.endDate);
-    this.validateDiscount(dto.rewardType, dto.rewardDiscountValue);
+    this.validateDiscount(dto.rewardTypes, dto.rewardDiscountValue);
+    this.validateQuantityRange(
+      dto.conditionMinQuantity,
+      dto.conditionMaxQuantity,
+    );
 
     const document = new this.promotionModel({
       name,
       description: normalizeText(dto.description),
       conditionType: dto.conditionType,
       conditionMinQuantity: dto.conditionMinQuantity,
+      conditionMaxQuantity: dto.conditionMaxQuantity ?? null,
       applicableProductType,
       applicableProductIds,
-      rewardType: dto.rewardType,
+      rewardTypes: dto.rewardTypes,
       rewardGiftSelectionMode,
       rewardGiftQuantityMode,
-      rewardGifts:
-        dto.rewardType === 'gift'
-          ? (dto.rewardGifts ?? []).map((g) => ({
-              groupId: g.groupId,
-              optionId: g.optionId,
-              quantity: g.quantity,
-            }))
-          : [],
-      rewardDiscountValue:
-        dto.rewardType !== 'gift' ? (dto.rewardDiscountValue ?? 0) : 0,
+      rewardGifts: hasGift
+        ? (dto.rewardGifts ?? []).map((g) => ({
+            groupId: g.groupId,
+            optionId: g.optionId,
+            quantity: g.quantity,
+          }))
+        : [],
+      rewardDiscountValue: hasDiscount ? (dto.rewardDiscountValue ?? 0) : 0,
       startDate: dto.startDate ? new Date(dto.startDate) : null,
       endDate: dto.endDate ? new Date(dto.endDate) : null,
       isActive: dto.isActive ?? true,
@@ -222,16 +234,20 @@ export class PromotionsService {
       dto.applicableProductType,
     );
     const applicableProductIds = normalizeProductIds(dto.applicableProductIds);
+    const hasGift = dto.rewardTypes.includes('gift');
+    const hasDiscount = dto.rewardTypes.some((t) =>
+      ['discount_fixed', 'discount_percent'].includes(t),
+    );
     const rewardGiftQuantityMode = this.resolveGiftQuantityMode(
-      dto.rewardType,
+      hasGift,
       dto.rewardGiftQuantityMode,
     );
     const rewardGiftSelectionMode = this.resolveGiftSelectionMode(
-      dto.rewardType,
+      hasGift,
       dto.rewardGiftSelectionMode,
     );
 
-    if (dto.rewardType === 'gift') {
+    if (hasGift) {
       await this.validateGifts(dto.rewardGifts ?? [], applicableProductType);
     }
 
@@ -240,27 +256,32 @@ export class PromotionsService {
       applicableProductType,
     );
     this.validateDates(dto.startDate, dto.endDate);
-    this.validateDiscount(dto.rewardType, dto.rewardDiscountValue);
+    this.validateDiscount(dto.rewardTypes, dto.rewardDiscountValue);
+    this.validateQuantityRange(
+      dto.conditionMinQuantity,
+      dto.conditionMaxQuantity,
+    );
 
     promotion.name = name;
     promotion.description = normalizeText(dto.description);
     promotion.conditionType = dto.conditionType;
     promotion.conditionMinQuantity = dto.conditionMinQuantity;
+    promotion.conditionMaxQuantity = dto.conditionMaxQuantity ?? null;
     promotion.applicableProductType = applicableProductType;
     promotion.applicableProductIds = applicableProductIds;
-    promotion.rewardType = dto.rewardType;
+    promotion.rewardTypes = dto.rewardTypes;
     promotion.rewardGiftSelectionMode = rewardGiftSelectionMode;
     promotion.rewardGiftQuantityMode = rewardGiftQuantityMode;
-    promotion.rewardGifts =
-      dto.rewardType === 'gift'
-        ? (dto.rewardGifts ?? []).map((g) => ({
-            groupId: g.groupId,
-            optionId: g.optionId,
-            quantity: g.quantity,
-          }))
-        : [];
-    promotion.rewardDiscountValue =
-      dto.rewardType !== 'gift' ? (dto.rewardDiscountValue ?? 0) : 0;
+    promotion.rewardGifts = hasGift
+      ? (dto.rewardGifts ?? []).map((g) => ({
+          groupId: g.groupId,
+          optionId: g.optionId,
+          quantity: g.quantity,
+        }))
+      : [];
+    promotion.rewardDiscountValue = hasDiscount
+      ? (dto.rewardDiscountValue ?? 0)
+      : 0;
     promotion.startDate = dto.startDate ? new Date(dto.startDate) : null;
     promotion.endDate = dto.endDate ? new Date(dto.endDate) : null;
     promotion.isActive = dto.isActive ?? true;
@@ -314,14 +335,14 @@ export class PromotionsService {
     groupMap: Map<string, string>,
     optionMap: Map<string, string>,
   ): PromotionResponse {
-    const rewardType =
-      (source.rewardType as PromotionResponse['rewardType']) ?? 'gift';
+    const rewardTypes = this.resolveRewardTypes(source);
+    const hasGift = rewardTypes.includes('gift');
     const rewardGiftSelectionMode = this.resolveGiftSelectionMode(
-      rewardType,
+      hasGift,
       source.rewardGiftSelectionMode,
     );
     const rewardGiftQuantityMode = this.resolveGiftQuantityMode(
-      rewardType,
+      hasGift,
       source.rewardGiftQuantityMode,
     );
 
@@ -348,6 +369,10 @@ export class PromotionsService {
         (source.conditionType as PromotionResponse['conditionType']) ??
         'lego_quantity',
       conditionMinQuantity: Number(source.conditionMinQuantity ?? 1),
+      conditionMaxQuantity:
+        source.conditionMaxQuantity != null
+          ? Number(source.conditionMaxQuantity)
+          : null,
       applicableProductType: this.resolveApplicableProductType(
         source.applicableProductType,
       ),
@@ -356,7 +381,7 @@ export class PromotionsService {
             .map((productId) => String(productId ?? ''))
             .filter(Boolean)
         : [],
-      rewardType,
+      rewardTypes,
       rewardGiftSelectionMode,
       rewardGiftQuantityMode,
       rewardGifts: gifts,
@@ -464,8 +489,22 @@ export class PromotionsService {
     }
   }
 
-  private validateDiscount(rewardType: string, value?: number): void {
-    if (rewardType === 'discount_percent' && value !== undefined) {
+  private validateQuantityRange(
+    min: number,
+    max?: number | null,
+  ): void {
+    if (max != null && max < min) {
+      throw new BadRequestException(
+        'Số lượng tối đa phải lớn hơn hoặc bằng số lượng tối thiểu.',
+      );
+    }
+  }
+
+  private validateDiscount(
+    rewardTypes: string[],
+    value?: number,
+  ): void {
+    if (rewardTypes.includes('discount_percent') && value !== undefined) {
       if (value < 0 || value > 100) {
         throw new BadRequestException(
           'Phần trăm giảm giá phải trong khoảng 0–100.',
@@ -480,11 +519,24 @@ export class PromotionsService {
     return value === 'bear' ? 'bear' : 'lego';
   }
 
+  private resolveRewardTypes(
+    source: PromotionSource,
+  ): PromotionResponse['rewardTypes'] {
+    // Support old documents that have rewardType (singular) instead of rewardTypes
+    if (Array.isArray(source.rewardTypes) && source.rewardTypes.length > 0) {
+      return source.rewardTypes as PromotionResponse['rewardTypes'];
+    }
+    if (source.rewardType) {
+      return [source.rewardType] as PromotionResponse['rewardTypes'];
+    }
+    return ['gift'];
+  }
+
   private resolveGiftQuantityMode(
-    rewardType: string,
+    hasGift: boolean,
     mode?: unknown,
   ): PromotionResponse['rewardGiftQuantityMode'] {
-    if (rewardType !== 'gift') {
+    if (!hasGift) {
       return 'fixed';
     }
 
@@ -492,10 +544,10 @@ export class PromotionsService {
   }
 
   private resolveGiftSelectionMode(
-    rewardType: string,
+    hasGift: boolean,
     mode?: unknown,
   ): PromotionResponse['rewardGiftSelectionMode'] {
-    if (rewardType !== 'gift') {
+    if (!hasGift) {
       return 'all';
     }
 

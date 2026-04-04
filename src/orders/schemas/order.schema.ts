@@ -3,11 +3,52 @@ import { Document, SchemaTypes } from 'mongoose';
 
 export type OrderDocument = Order & Document;
 export type OrderStatus =
-  | 'pending'
-  | 'confirmed'
-  | 'processing'
+  | 'received'
+  | 'consulting'
+  | 'waiting_demo'
+  | 'waiting_demo_confirm'
+  | 'waiting_payment'
+  | 'paid'
+  | 'designing'
+  | 'waiting_design_approval'
+  | 'producing'
+  | 'shipped'
+  | 'delivering'
   | 'completed'
+  | 'complaint'
+  | 'handling_complaint'
+  | 'complaint_closed'
+  | 'closed'
   | 'cancelled';
+
+export const ALL_ORDER_STATUSES: OrderStatus[] = [
+  'received',
+  'consulting',
+  'waiting_demo',
+  'waiting_demo_confirm',
+  'waiting_payment',
+  'paid',
+  'designing',
+  'waiting_design_approval',
+  'producing',
+  'shipped',
+  'delivering',
+  'completed',
+  'complaint',
+  'handling_complaint',
+  'complaint_closed',
+  'closed',
+  'cancelled',
+];
+
+export const BEAR_EXCLUDED_STATUSES: OrderStatus[] = [
+  'waiting_demo',
+  'waiting_demo_confirm',
+  'designing',
+  'waiting_design_approval',
+];
+
+export type OrderProductType = 'lego' | 'bear';
 
 export type OrderShippingPayer = 'customer' | 'shop';
 
@@ -171,6 +212,21 @@ export class OrderAppliedGift {
 export const OrderAppliedGiftSchema =
   SchemaFactory.createForClass(OrderAppliedGift);
 
+@Schema({ _id: false })
+export class OrderProgressImages {
+  @Prop({ default: '', trim: true, maxlength: 500 })
+  demoImage!: string;
+
+  @Prop({ default: '', trim: true, maxlength: 500 })
+  backgroundImage!: string;
+
+  @Prop({ default: '', trim: true, maxlength: 500 })
+  completedProductImage!: string;
+}
+
+export const OrderProgressImagesSchema =
+  SchemaFactory.createForClass(OrderProgressImages);
+
 @Schema({ timestamps: true })
 export class Order {
   @Prop({ required: true, unique: true, trim: true, index: true })
@@ -184,10 +240,16 @@ export class Order {
 
   @Prop({
     required: true,
-    enum: ['pending', 'confirmed', 'processing', 'completed', 'cancelled'],
-    default: 'pending',
+    enum: ALL_ORDER_STATUSES,
+    default: 'received',
   })
   status!: OrderStatus;
+
+  @Prop({ enum: ['lego', 'bear'], default: 'lego' })
+  productType!: OrderProductType;
+
+  @Prop({ default: '', trim: true, maxlength: 200 })
+  assignedTo!: string;
 
   @Prop({ required: true, enum: ['customer', 'shop'], default: 'customer' })
   shippingPayer!: OrderShippingPayer;
@@ -206,6 +268,9 @@ export class Order {
 
   @Prop({ type: [OrderAppliedGiftSchema], default: [] })
   appliedGifts!: OrderAppliedGift[];
+
+  @Prop({ type: OrderProgressImagesSchema, default: () => ({}) })
+  progressImages!: OrderProgressImages;
 
   @Prop({ default: '', trim: true, maxlength: 2000 })
   note!: string;

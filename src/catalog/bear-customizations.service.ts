@@ -107,7 +107,10 @@ export class BearCustomizationsService {
         .exec() as Promise<BearCustomizationOptionSource[]>,
     ]);
 
-    const optionsByGroupId = new Map<string, BearCustomizationOptionResponse[]>();
+    const optionsByGroupId = new Map<
+      string,
+      BearCustomizationOptionResponse[]
+    >();
 
     for (const option of options) {
       const groupId = String(option.groupId);
@@ -147,7 +150,10 @@ export class BearCustomizationsService {
         .exec() as Promise<BearCustomizationOptionSource[]>,
     ]);
 
-    const optionsByGroupId = new Map<string, Array<PublicBearCustomizationGroupResponse['options'][0]>>();
+    const optionsByGroupId = new Map<
+      string,
+      Array<PublicBearCustomizationGroupResponse['options'][0]>
+    >();
 
     for (const option of options) {
       const groupId = String(option.groupId);
@@ -227,9 +233,11 @@ export class BearCustomizationsService {
 
     const saved = await group.save();
 
-    const optionCount = await this.bearCustomizationOptionModel.countDocuments({
-      groupId: id,
-    }).exec();
+    const optionCount = await this.bearCustomizationOptionModel
+      .countDocuments({
+        groupId: id,
+      })
+      .exec();
 
     const options = (await this.bearCustomizationOptionModel
       .find({ groupId: id })
@@ -254,9 +262,11 @@ export class BearCustomizationsService {
       throw new NotFoundException('Không tìm thấy nhóm tùy chỉnh gấu.');
     }
 
-    const optionsCount = await this.bearCustomizationOptionModel.countDocuments({
-      groupId: id,
-    }).exec();
+    const optionsCount = await this.bearCustomizationOptionModel
+      .countDocuments({
+        groupId: id,
+      })
+      .exec();
 
     if (optionsCount > 0) {
       throw new BadRequestException(
@@ -292,7 +302,9 @@ export class BearCustomizationsService {
     });
 
     const saved = await document.save();
-    return this.mapOptionResponse(saved.toObject() as BearCustomizationOptionSource);
+    return this.mapOptionResponse(
+      saved.toObject() as BearCustomizationOptionSource,
+    );
   }
 
   async updateOption(
@@ -335,7 +347,9 @@ export class BearCustomizationsService {
     }
 
     const saved = await option.save();
-    return this.mapOptionResponse(saved.toObject() as BearCustomizationOptionSource);
+    return this.mapOptionResponse(
+      saved.toObject() as BearCustomizationOptionSource,
+    );
   }
 
   async deleteOption(id: string): Promise<void> {
@@ -384,7 +398,9 @@ export class BearCustomizationsService {
         : Number(dto.lowStockThreshold);
 
     if (!Number.isInteger(stockQuantity) || stockQuantity < 0) {
-      throw new BadRequestException('Số lượng tồn kho phải là số nguyên từ 0 trở lên.');
+      throw new BadRequestException(
+        'Số lượng tồn kho phải là số nguyên từ 0 trở lên.',
+      );
     }
 
     if (!Number.isInteger(lowStockThreshold) || lowStockThreshold < 0) {
@@ -399,11 +415,17 @@ export class BearCustomizationsService {
   private normalizeImageConfig(dto: CreateBearCustomizationOptionDto) {
     const allowImageUpload = Boolean(dto.allowImageUpload);
     const imageRaw = dto.image?.trim() ?? '';
-    const image = allowImageUpload ? '' : imageRaw;
+    const image = allowImageUpload ? imageRaw : '';
 
-    if (!allowImageUpload && !image && !dto.colorCode?.trim()) {
+    if (allowImageUpload && !image) {
       throw new BadRequestException(
-        'Nếu không cho phép upload ảnh, phải chọn màu sắc hoặc cung cấp ảnh gốc tham chiếu.',
+        'Nếu bật chế độ dùng ảnh, vui lòng cung cấp ảnh cho lựa chọn.',
+      );
+    }
+
+    if (!allowImageUpload && !dto.colorCode?.trim()) {
+      throw new BadRequestException(
+        'Nếu tắt chế độ dùng ảnh, vui lòng chọn màu sắc hợp lệ.',
       );
     }
 
@@ -432,7 +454,9 @@ export class BearCustomizationsService {
   }
 
   private async assertGroupExists(groupId: string): Promise<void> {
-    const group = await this.bearCustomizationGroupModel.findById(groupId).exec();
+    const group = await this.bearCustomizationGroupModel
+      .findById(groupId)
+      .exec();
     if (!group) {
       throw new BadRequestException('Nhóm tùy chỉnh không tồn tại.');
     }

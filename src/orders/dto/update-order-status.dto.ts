@@ -1,10 +1,17 @@
-import { IsEnum } from 'class-validator';
-import { type OrderStatus } from '../schemas/order.schema';
+import { IsEnum, IsOptional, IsString, MaxLength } from 'class-validator';
+import {
+  ALL_ORDER_STATUSES,
+  type OrderStatus,
+} from '../schemas/order.schema';
 
 export class UpdateOrderStatusDto {
-  @IsEnum(['pending', 'confirmed', 'processing', 'completed', 'cancelled'], {
-    message:
-      'Trạng thái đơn hàng phải là pending, confirmed, processing, completed hoặc cancelled.',
+  @IsEnum(ALL_ORDER_STATUSES, {
+    message: `Trạng thái đơn hàng không hợp lệ. Giá trị cho phép: ${ALL_ORDER_STATUSES.join(', ')}.`,
   })
   status!: OrderStatus;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  assignedTo?: string;
 }

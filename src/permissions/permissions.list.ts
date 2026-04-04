@@ -238,6 +238,11 @@ export const SYSTEM_PERMISSIONS: PermissionDef[] = [
     label: 'Cập nhật trạng thái đơn hàng',
     group: 'Đơn hàng',
   },
+  {
+    key: 'orders.assign',
+    label: 'Phân công đơn hàng cho nhân viên bất kỳ',
+    group: 'Đơn hàng',
+  },
 
   // ── Quản lý feedback ─────────────────────────────────────────────────────
   {

@@ -16,7 +16,9 @@ import {
 import { CreateOrderDto } from './dto/create-order.dto';
 import {
   Order,
+  ALL_ORDER_STATUSES,
   type OrderDocument,
+  type OrderProductType,
   type OrderShippingPayer,
   type OrderStatus,
 } from './schemas/order.schema';
@@ -95,6 +97,8 @@ interface OrderSource {
   dateKey?: unknown;
   variantSymbol?: unknown;
   status?: unknown;
+  productType?: unknown;
+  assignedTo?: unknown;
   shippingPayer?: unknown;
   items?: unknown[];
   customerInfoEntries?: unknown[];
@@ -104,6 +108,7 @@ interface OrderSource {
   createdAt?: unknown;
   updatedAt?: unknown;
   appliedGifts?: unknown[];
+  progressImages?: unknown;
 }
 
 interface OrderSequenceSource {
@@ -169,17 +174,32 @@ export interface OrderCustomerInfoEntryResponse {
   value: string | string[];
 }
 
+export interface OrderAppliedGiftResponse {
+  optionId: string;
+  quantity: number;
+}
+
+export interface OrderProgressImagesResponse {
+  demoImage: string;
+  backgroundImage: string;
+  completedProductImage: string;
+}
+
 export interface OrderResponse {
   id: string;
   orderCode: string;
   dateKey: string;
   variantSymbol: string;
   status: OrderStatus;
+  productType: OrderProductType;
+  assignedTo: string;
   shippingPayer: OrderShippingPayer;
   itemsCount: number;
   pricingSummary: OrderPricingSummaryResponse;
   items: OrderItemResponse[];
   customerInfoEntries: OrderCustomerInfoEntryResponse[];
+  appliedGifts: OrderAppliedGiftResponse[];
+  progressImages: OrderProgressImagesResponse;
   note: string;
   createdAt: string;
   updatedAt: string;
@@ -207,6 +227,35 @@ export class OrdersService {
       .exec()) as OrderSource[];
 
     return orders.map((order) => this.mapOrder(order));
+  }
+
+  async findById(id: string): Promise<OrderResponse> {
+    const order = (await this.orderModel
+      .findById(id)
+      .lean()
+      .exec()) as OrderSource | null;
+
+    if (!order) {
+      throw new NotFoundException('Không tìm thấy đơn hàng.');
+    }
+
+    return this.mapOrder(order);
+  }
+
+  async assignOrder(id: string, assignedTo: string): Promise<OrderResponse> {
+    const updated = (await this.orderModel
+      .findByIdAndUpdate(
+        id,
+        { $set: { assignedTo: assignedTo.trim() } },
+        { new: true, lean: true },
+      )
+      .exec()) as OrderSource | null;
+
+    if (!updated) {
+      throw new NotFoundException('Không tìm thấy đơn hàng.');
+    }
+
+    return this.mapOrder(updated);
   }
 
   async createPublic(dto: CreateOrderDto): Promise<OrderResponse> {
@@ -247,11 +296,15 @@ export class OrdersService {
         itemsSubtotal,
       );
 
+      const productType = detectProductType(dto.items);
+
       const orderDocument = new this.orderModel({
         orderCode,
         dateKey,
         variantSymbol: primarySymbol,
-        status: 'pending',
+        status: 'received',
+        productType,
+        assignedTo: '',
         shippingPayer,
         items: normalizedItems,
         customerInfoEntries,
@@ -303,7 +356,47 @@ export class OrdersService {
     return this.mapOrder(order);
   }
 
-  async updateStatus(id: string, status: OrderStatus): Promise<OrderResponse> {
+  async updateProgressImages(
+    id: string,
+    dto: {
+      demoImage?: string;
+      backgroundImage?: string;
+      completedProductImage?: string;
+    },
+  ): Promise<OrderResponse> {
+    const updated = (await this.orderModel
+      .findByIdAndUpdate(
+        id,
+        {
+          $set: {
+            'progressImages.demoImage': normalizeText(dto.demoImage).slice(
+              0,
+              500,
+            ),
+            'progressImages.backgroundImage': normalizeText(
+              dto.backgroundImage,
+            ).slice(0, 500),
+            'progressImages.completedProductImage': normalizeText(
+              dto.completedProductImage,
+            ).slice(0, 500),
+          },
+        },
+        { new: true, lean: true },
+      )
+      .exec()) as OrderSource | null;
+
+    if (!updated) {
+      throw new NotFoundException('Không tìm thấy đơn hàng.');
+    }
+
+    return this.mapOrder(updated);
+  }
+
+  async updateStatus(
+    id: string,
+    status: OrderStatus,
+    assignedTo?: string,
+  ): Promise<OrderResponse> {
     const order = await this.orderModel.findById(id).exec();
 
     if (!order) {
@@ -311,46 +404,64 @@ export class OrdersService {
     }
 
     const previousStatus = order.status;
-    if (previousStatus === status) {
+    const statusChanged = previousStatus !== status;
+    const assignedToChanged =
+      assignedTo !== undefined && assignedTo !== (order as any).assignedTo;
+
+    if (!statusChanged && !assignedToChanged) {
       return this.mapOrder(order.toObject() as OrderSource);
     }
 
-    const customizationDemand =
-      this.buildCustomizationOptionDemandFromStoredItems(
-        Array.isArray(order.items) ? order.items : [],
-        Array.isArray(order.appliedGifts) ? order.appliedGifts : [],
-      );
-
-    let stockAction: 'consume' | 'restore' | null = null;
-
-    if (previousStatus !== 'cancelled' && status === 'cancelled') {
-      await this.restoreCustomizationOptionDemand(customizationDemand);
-      stockAction = 'restore';
-    } else if (previousStatus === 'cancelled' && status !== 'cancelled') {
-      await this.consumeCustomizationOptionDemand(customizationDemand);
-      stockAction = 'consume';
-    }
-
-    order.status = status;
-
-    let saved: OrderSource;
-
-    try {
-      saved = (await order.save()).toObject() as OrderSource;
-    } catch (error) {
-      if (stockAction === 'restore') {
-        await this.consumeCustomizationOptionDemand(customizationDemand).catch(
-          () => undefined,
+    if (statusChanged) {
+      const customizationDemand =
+        this.buildCustomizationOptionDemandFromStoredItems(
+          Array.isArray(order.items) ? order.items : [],
+          Array.isArray(order.appliedGifts) ? order.appliedGifts : [],
         );
-      } else if (stockAction === 'consume') {
-        await this.restoreCustomizationOptionDemand(customizationDemand).catch(
-          () => undefined,
-        );
+
+      let stockAction: 'consume' | 'restore' | null = null;
+
+      if (previousStatus !== 'cancelled' && status === 'cancelled') {
+        await this.restoreCustomizationOptionDemand(customizationDemand);
+        stockAction = 'restore';
+      } else if (previousStatus === 'cancelled' && status !== 'cancelled') {
+        await this.consumeCustomizationOptionDemand(customizationDemand);
+        stockAction = 'consume';
       }
 
-      throw error;
+      order.status = status;
+
+      if (assignedTo !== undefined) {
+        (order as any).assignedTo = assignedTo;
+      }
+
+      let saved: OrderSource;
+
+      try {
+        saved = (await order.save()).toObject() as OrderSource;
+      } catch (error) {
+        if (stockAction === 'restore') {
+          await this.consumeCustomizationOptionDemand(
+            customizationDemand,
+          ).catch(() => undefined);
+        } else if (stockAction === 'consume') {
+          await this.restoreCustomizationOptionDemand(
+            customizationDemand,
+          ).catch(() => undefined);
+        }
+
+        throw error;
+      }
+
+      return this.mapOrder(saved);
     }
 
+    // Only assignedTo changed
+    if (assignedTo !== undefined) {
+      (order as any).assignedTo = assignedTo;
+    }
+
+    const saved = (await order.save()).toObject() as OrderSource;
     return this.mapOrder(saved);
   }
 
@@ -804,6 +915,8 @@ export class OrdersService {
       dateKey: String(source.dateKey ?? ''),
       variantSymbol: resolveVariantSymbol(source.variantSymbol, ''),
       status: normalizeOrderStatus(source.status),
+      productType: normalizeProductType(source.productType),
+      assignedTo: String(source.assignedTo ?? ''),
       shippingPayer: normalizeShippingPayer(source.shippingPayer),
       itemsCount: Math.max(1, Number(source.itemsCount ?? items.length ?? 1)),
       pricingSummary: {
@@ -822,6 +935,19 @@ export class OrdersService {
             this.mapCustomerInfoEntry(entry, index),
           )
         : [],
+      appliedGifts: Array.isArray(source.appliedGifts)
+        ? source.appliedGifts
+            .map((gift) => {
+              const g = toRecord(gift);
+              const optionId = normalizeText(g.optionId);
+              const quantity = Math.max(1, Math.floor(Number(g.quantity ?? 1)));
+              return optionId ? { optionId, quantity } : null;
+            })
+            .filter(
+              (g): g is { optionId: string; quantity: number } => g !== null,
+            )
+        : [],
+      progressImages: this.mapProgressImages(source.progressImages),
       note: String(source.note ?? ''),
       createdAt: String(source.createdAt ?? new Date().toISOString()),
       updatedAt: String(source.updatedAt ?? new Date().toISOString()),
@@ -909,6 +1035,19 @@ export class OrdersService {
         : [],
       additionalOptionCount: toIntegerValue(source.additionalOptionCount),
       payload: toRecord(source.payload),
+    };
+  }
+
+  private mapProgressImages(source: unknown): OrderProgressImagesResponse {
+    const data = toRecord(source);
+
+    return {
+      demoImage: toStringValue(data.demoImage).slice(0, 500),
+      backgroundImage: toStringValue(data.backgroundImage).slice(0, 500),
+      completedProductImage: toStringValue(data.completedProductImage).slice(
+        0,
+        500,
+      ),
     };
   }
 
@@ -1044,18 +1183,40 @@ function resolveVariantSymbol(value: unknown, fallbackSource: unknown): string {
   return 'X';
 }
 
-function normalizeOrderStatus(value: unknown): OrderStatus {
-  if (
-    value === 'pending' ||
-    value === 'confirmed' ||
-    value === 'processing' ||
-    value === 'completed' ||
-    value === 'cancelled'
-  ) {
-    return value;
-  }
+function normalizeProductType(value: unknown): OrderProductType {
+  if (value === 'bear') return 'bear';
+  return 'lego';
+}
 
-  return 'pending';
+function detectProductType(items: Record<string, unknown>[]): OrderProductType {
+  for (const item of items) {
+    const raw = toRecord(item);
+    if (Array.isArray(raw.bearSlotDetails) && raw.bearSlotDetails.length > 0) {
+      return 'bear';
+    }
+    const totalBearCount = Number(raw.totalBearCount ?? 0);
+    if (totalBearCount > 0) {
+      return 'bear';
+    }
+    const product = toRecord(raw.product);
+    if (product.productType === 'bear') {
+      return 'bear';
+    }
+  }
+  return 'lego';
+}
+
+function normalizeOrderStatus(value: unknown): OrderStatus {
+  const str = typeof value === 'string' ? value : '';
+  if ((ALL_ORDER_STATUSES as string[]).includes(str)) {
+    return str as OrderStatus;
+  }
+  // Migrate old statuses
+  if (value === 'pending') return 'received';
+  if (value === 'confirmed') return 'paid';
+  if (value === 'processing') return 'producing';
+
+  return 'received';
 }
 
 function normalizeShippingPayer(value: unknown): OrderShippingPayer {

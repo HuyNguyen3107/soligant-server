@@ -49,6 +49,12 @@ export class CreatePromotionDto {
   @Min(1, { message: 'Số lượng tối thiểu phải từ 1 trở lên.' })
   conditionMinQuantity!: number;
 
+  @IsOptional()
+  @ValidateIf((dto) => dto.conditionMaxQuantity !== null)
+  @IsInt({ message: 'Số lượng tối đa phải là số nguyên.' })
+  @Min(1, { message: 'Số lượng tối đa phải từ 1 trở lên.' })
+  conditionMaxQuantity?: number | null;
+
   @IsEnum(['lego', 'bear'], {
     message: 'Loại sản phẩm áp dụng phải là "lego" hoặc "bear".',
   })
@@ -60,20 +66,25 @@ export class CreatePromotionDto {
   @IsMongoId({ each: true, message: 'Sản phẩm áp dụng không hợp lệ.' })
   applicableProductIds?: string[];
 
-  @IsEnum(['gift', 'discount_fixed', 'discount_percent'], {
+  @IsArray({ message: 'Loại phần thưởng phải là mảng.' })
+  @ArrayMinSize(1, { message: 'Phải chọn ít nhất 1 loại phần thưởng.' })
+  @IsEnum(['gift', 'discount_fixed', 'discount_percent', 'freeship'], {
+    each: true,
     message:
-      'Loại phần thưởng phải là "gift", "discount_fixed" hoặc "discount_percent".',
+      'Loại phần thưởng phải là "gift", "discount_fixed", "discount_percent" hoặc "freeship".',
   })
-  rewardType!: 'gift' | 'discount_fixed' | 'discount_percent';
+  rewardTypes!: Array<
+    'gift' | 'discount_fixed' | 'discount_percent' | 'freeship'
+  >;
 
-  @ValidateIf((dto) => dto.rewardType === 'gift')
+  @ValidateIf((dto) => (dto.rewardTypes ?? []).includes('gift'))
   @IsEnum(['all', 'choose_one'], {
     message: 'Chế độ nhận quà phải là "all" hoặc "choose_one".',
   })
   @IsOptional()
   rewardGiftSelectionMode?: 'all' | 'choose_one';
 
-  @ValidateIf((dto) => dto.rewardType === 'gift')
+  @ValidateIf((dto) => (dto.rewardTypes ?? []).includes('gift'))
   @IsEnum(['fixed', 'multiply_by_condition'], {
     message:
       'Chế độ số lượng quà phải là "fixed" hoặc "multiply_by_condition".',
@@ -81,7 +92,7 @@ export class CreatePromotionDto {
   @IsOptional()
   rewardGiftQuantityMode?: 'fixed' | 'multiply_by_condition';
 
-  @ValidateIf((dto) => dto.rewardType === 'gift')
+  @ValidateIf((dto) => (dto.rewardTypes ?? []).includes('gift'))
   @IsArray({ message: 'Danh sách quà tặng phải là mảng.' })
   @ArrayMinSize(1, { message: 'Phải chọn ít nhất 1 quà tặng.' })
   @ValidateNested({ each: true })
@@ -90,7 +101,9 @@ export class CreatePromotionDto {
   rewardGifts?: PromotionGiftDto[];
 
   @ValidateIf((dto) =>
-    ['discount_fixed', 'discount_percent'].includes(dto.rewardType),
+    (dto.rewardTypes ?? []).some((t: string) =>
+      ['discount_fixed', 'discount_percent'].includes(t),
+    ),
   )
   @IsNumber({}, { message: 'Giá trị giảm giá phải là số.' })
   @Min(0, { message: 'Giá trị giảm giá không được âm.' })
