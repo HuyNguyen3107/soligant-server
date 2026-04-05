@@ -5,7 +5,6 @@ import * as bcrypt from 'bcrypt';
 import { User, UserDocument, UserRole } from './schemas/user.schema';
 
 const ADMIN_EMAIL = 'admin@soligant.gift';
-const DEFAULT_ADMIN_PASSWORD = 'Admin@123456';
 
 @Injectable()
 export class UsersSeeder implements OnModuleInit {
@@ -29,7 +28,9 @@ export class UsersSeeder implements OnModuleInit {
         return;
       }
 
-      const hashedPassword = await bcrypt.hash(DEFAULT_ADMIN_PASSWORD, 10);
+      const defaultPassword =
+        process.env.DEFAULT_ADMIN_PASSWORD || 'Admin@123456';
+      const hashedPassword = await bcrypt.hash(defaultPassword, 10);
 
       const adminUser = new this.userModel({
         name: 'Administrator',
@@ -45,7 +46,7 @@ export class UsersSeeder implements OnModuleInit {
         `Admin user created successfully with email: ${ADMIN_EMAIL}`,
       );
       this.logger.warn(
-        `Default admin password: ${DEFAULT_ADMIN_PASSWORD} - Please change it after first login!`,
+        'Please change the default admin password after first login!',
       );
     } catch (error) {
       this.logger.error('Failed to seed admin user', error);

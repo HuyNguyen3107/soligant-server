@@ -20,7 +20,11 @@ export class CreateUserDto {
 
   @IsString()
   @IsNotEmpty({ message: 'Mật khẩu không được để trống.' })
-  @MinLength(6, { message: 'Mật khẩu phải có ít nhất 6 ký tự.' })
+  @MinLength(8, { message: 'Mật khẩu phải có ít nhất 8 ký tự.' })
+  @Matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]).+$/, {
+    message:
+      'Mật khẩu phải chứa ít nhất 1 chữ hoa, 1 chữ thường, 1 số và 1 ký tự đặc biệt.',
+  })
   @Matches(/^\S+$/, { message: 'Mật khẩu không được chứa khoảng trắng.' })
   password!: string;
 

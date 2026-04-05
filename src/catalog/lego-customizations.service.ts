@@ -4,7 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { existsSync, unlinkSync } from 'fs';
+import { unlink } from 'fs/promises';
 import { Model } from 'mongoose';
 import { join } from 'path';
 import { CreateLegoCustomizationGroupDto } from './dto/create-lego-customization-group.dto';
@@ -366,15 +366,13 @@ export class LegoCustomizationsService {
     };
   }
 
-  private deleteLocalImage(image: string): void {
+  private async deleteLocalImage(image: string): Promise<void> {
     const match = image.match(/\/uploads\/([^/?#]+)$/);
     if (!match) return;
 
     const filePath = join(process.cwd(), 'public', 'uploads', match[1]);
-    if (!existsSync(filePath)) return;
-
     try {
-      unlinkSync(filePath);
+      await unlink(filePath);
     } catch {
       // Ignore filesystem cleanup failures for non-critical stale files.
     }

@@ -5,7 +5,7 @@ import {
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { existsSync, unlinkSync } from 'fs';
+import { unlink } from 'fs/promises';
 import { join } from 'path';
 import {
   Collection,
@@ -565,15 +565,13 @@ export class LegoFrameVariantsService {
     }
   }
 
-  private deleteLocalImage(image: string): void {
+  private async deleteLocalImage(image: string): Promise<void> {
     const match = image.match(/\/uploads\/([^/?#]+)$/);
     if (!match) return;
 
     const filePath = join(process.cwd(), 'public', 'uploads', match[1]);
     try {
-      if (existsSync(filePath)) {
-        unlinkSync(filePath);
-      }
+      await unlink(filePath);
     } catch {
       // bỏ qua lỗi xóa ảnh cũ để không chặn cập nhật dữ liệu
     }

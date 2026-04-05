@@ -93,3 +93,6 @@ export class Background {
 }
 
 export const BackgroundSchema = SchemaFactory.createForClass(Background);
+
+BackgroundSchema.index({ themeId: 1, isActive: 1 });
+BackgroundSchema.index({ applicableProductType: 1, isActive: 1 });

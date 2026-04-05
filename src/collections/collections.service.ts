@@ -5,7 +5,7 @@ import {
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { existsSync, unlinkSync } from 'fs';
+import { unlink } from 'fs/promises';
 import { join } from 'path';
 import { Collection, CollectionDocument } from './schemas/collection.schema';
 import { CreateCollectionDto } from './dto/create-collection.dto';
@@ -18,12 +18,12 @@ export class CollectionsService {
   ) {}
 
   /** Xóa file ảnh đã upload nếu nó là file local (lưu trong /uploads/) */
-  private deleteLocalThumbnail(thumbnail: string): void {
+  private async deleteLocalThumbnail(thumbnail: string): Promise<void> {
     const match = thumbnail.match(/\/uploads\/([^/?#]+)$/);
     if (!match) return;
     const filePath = join(process.cwd(), 'public', 'uploads', match[1]);
     try {
-      if (existsSync(filePath)) unlinkSync(filePath);
+      await unlink(filePath);
     } catch {
       // bỏ qua lỗi khi xóa file
     }

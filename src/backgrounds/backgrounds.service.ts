@@ -4,7 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { existsSync, unlinkSync } from 'fs';
+import { unlink } from 'fs/promises';
 import { Model, Types } from 'mongoose';
 import { join } from 'path';
 import { CreateBackgroundDto } from './dto/create-background.dto';
@@ -392,13 +392,12 @@ export class BackgroundsService {
     throw new BadRequestException('productType phải là lego hoặc bear.');
   }
 
-  private deleteLocalImage(image: string): void {
+  private async deleteLocalImage(image: string): Promise<void> {
     const match = image.match(/\/uploads\/([^/?#]+)$/);
     if (!match) return;
     const filePath = join(process.cwd(), 'public', 'uploads', match[1]);
-    if (!existsSync(filePath)) return;
     try {
-      unlinkSync(filePath);
+      await unlink(filePath);
     } catch {
       // Ignore cleanup failures
     }

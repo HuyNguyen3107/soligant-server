@@ -1,5 +1,11 @@
-import { WebSocketGateway, WebSocketServer } from '@nestjs/websockets';
-import { Server } from 'socket.io';
+import {
+  WebSocketGateway,
+  WebSocketServer,
+  OnGatewayConnection,
+} from '@nestjs/websockets';
+import { Server, Socket } from 'socket.io';
+import { JwtService } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
 
 export interface OrderCreatedSocketPayload {
   id: string;
@@ -27,10 +33,37 @@ const resolveCorsOrigins = () => {
     origin: resolveCorsOrigins(),
     credentials: true,
   },
+  transports: ['websocket', 'polling'],
+  pingInterval: 25000,
+  pingTimeout: 60000,
 })
-export class OrdersGateway {
+export class OrdersGateway implements OnGatewayConnection {
   @WebSocketServer()
   private server!: Server;
+
+  constructor(
+    private jwtService: JwtService,
+    private configService: ConfigService,
+  ) {}
+
+  async handleConnection(client: Socket) {
+    try {
+      const token =
+        (client.handshake.auth?.token as string) ||
+        (client.handshake.headers?.authorization?.replace('Bearer ', '') ?? '');
+
+      if (!token) {
+        client.disconnect();
+        return;
+      }
+
+      this.jwtService.verify(token, {
+        secret: this.configService.getOrThrow<string>('JWT_SECRET'),
+      });
+    } catch {
+      client.disconnect();
+    }
+  }
 
   emitOrderCreated(payload: OrderCreatedSocketPayload): void {
     this.server.emit('orders:new', payload);

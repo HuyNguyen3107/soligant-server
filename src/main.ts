@@ -3,13 +3,26 @@ import { ValidationPipe } from '@nestjs/common';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { json, urlencoded } from 'express';
 import { join } from 'path';
+import helmet from 'helmet';
+import compression from 'compression';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
-  const requestBodyLimit = process.env.REQUEST_BODY_LIMIT ?? '10mb';
+  const requestBodyLimit = process.env.REQUEST_BODY_LIMIT ?? '5mb';
 
-  // Increase body parser limits so large order payloads (customizations/images) are accepted.
+  // Security headers
+  app.use(
+    helmet({
+      crossOriginResourcePolicy: { policy: 'cross-origin' },
+      contentSecurityPolicy: false,
+    }),
+  );
+
+  // Response compression
+  app.use(compression());
+
+  // Body parser limits
   app.use(json({ limit: requestBodyLimit }));
   app.use(urlencoded({ extended: true, limit: requestBodyLimit }));
 
@@ -20,7 +33,10 @@ async function bootstrap() {
   // Get CORS origins from environment variable
   const corsOriginsEnv =
     process.env.CORS_ORIGINS || 'http://localhost:5173,http://127.0.0.1:5173';
-  const corsOrigins = corsOriginsEnv.split(',').map((origin) => origin.trim());
+  const corsOrigins = corsOriginsEnv
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
 
   // Set global prefix for all routes
   app.setGlobalPrefix('api');
@@ -37,6 +53,7 @@ async function bootstrap() {
     new ValidationPipe({
       whitelist: true,
       transform: true,
+      forbidNonWhitelisted: true,
     }),
   );
 

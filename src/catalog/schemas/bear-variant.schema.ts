@@ -61,3 +61,7 @@ export class BearVariant {
 }
 
 export const BearVariantSchema = SchemaFactory.createForClass(BearVariant);
+
+BearVariantSchema.index({ collectionId: 1, isActive: 1 });
+BearVariantSchema.index({ categoryId: 1, isActive: 1 });
+BearVariantSchema.index({ variantSymbol: 1 }, { unique: true });

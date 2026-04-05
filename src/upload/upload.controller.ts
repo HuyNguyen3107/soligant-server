@@ -14,12 +14,13 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { extname, join } from 'path';
-import { existsSync, mkdirSync, unlinkSync } from 'fs';
+import { existsSync, mkdirSync } from 'fs';
+import { unlink } from 'fs/promises';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
 const UPLOAD_DIR = join(process.cwd(), 'public', 'uploads');
 
-// Đảm bảo thư mục uploads tồn tại
+// Đảm bảo thư mục uploads tồn tại (sync is fine at startup)
 if (!existsSync(UPLOAD_DIR)) {
   mkdirSync(UPLOAD_DIR, { recursive: true });
 }
@@ -69,7 +70,7 @@ export class UploadController {
   @Delete('image/:filename')
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.NO_CONTENT)
-  deleteImage(@Param('filename') filename: string): void {
+  async deleteImage(@Param('filename') filename: string): Promise<void> {
     // Chặn path traversal
     if (
       filename.includes('..') ||
@@ -79,12 +80,10 @@ export class UploadController {
       throw new BadRequestException('Tên file không hợp lệ.');
     }
     const filePath = join(UPLOAD_DIR, filename);
-    if (!existsSync(filePath))
-      throw new NotFoundException('File không tồn tại.');
     try {
-      unlinkSync(filePath);
+      await unlink(filePath);
     } catch {
-      throw new BadRequestException('Không thể xóa file.');
+      throw new NotFoundException('File không tồn tại hoặc không thể xóa.');
     }
   }
 }

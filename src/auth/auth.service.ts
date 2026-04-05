@@ -73,9 +73,7 @@ export class AuthService {
       const payload = this.jwtService.verify<JwtPayload>(
         refreshTokenDto.refreshToken,
         {
-          secret:
-            this.configService.get<string>('JWT_REFRESH_SECRET') ||
-            'refresh-secret-key',
+          secret: this.configService.getOrThrow<string>('JWT_REFRESH_SECRET'),
         },
       );
 
@@ -120,16 +118,13 @@ export class AuthService {
 
     // Access token expires in 1 week
     const accessToken = this.jwtService.sign(payload, {
-      secret:
-        this.configService.get<string>('JWT_SECRET') || 'access-secret-key',
+      secret: this.configService.getOrThrow<string>('JWT_SECRET'),
       expiresIn: '7d',
     });
 
     // Refresh token expires in 2 weeks
     const refreshToken = this.jwtService.sign(payload, {
-      secret:
-        this.configService.get<string>('JWT_REFRESH_SECRET') ||
-        'refresh-secret-key',
+      secret: this.configService.getOrThrow<string>('JWT_REFRESH_SECRET'),
       expiresIn: '14d',
     });
 

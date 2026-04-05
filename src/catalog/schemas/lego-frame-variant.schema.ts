@@ -62,3 +62,7 @@ export class LegoFrameVariant {
 
 export const LegoFrameVariantSchema =
   SchemaFactory.createForClass(LegoFrameVariant);
+
+LegoFrameVariantSchema.index({ collectionId: 1, isActive: 1 });
+LegoFrameVariantSchema.index({ categoryId: 1, isActive: 1 });
+LegoFrameVariantSchema.index({ variantSymbol: 1 }, { unique: true });

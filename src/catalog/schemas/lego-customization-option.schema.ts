@@ -39,3 +39,5 @@ export class LegoCustomizationOption {
 export const LegoCustomizationOptionSchema = SchemaFactory.createForClass(
   LegoCustomizationOption,
 );
+
+LegoCustomizationOptionSchema.index({ groupId: 1, isActive: 1 });

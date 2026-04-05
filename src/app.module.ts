@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
 import { MongooseModule } from '@nestjs/mongoose';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { UsersModule } from './users/users.module';
 import { AuthModule } from './auth/auth.module';
 import { PermissionsModule } from './permissions/permissions.module';
@@ -21,6 +23,13 @@ import { FeedbacksModule } from './feedbacks/feedbacks.module';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
+    }),
+    ThrottlerModule.forRoot({
+      throttlers: [
+        { name: 'short', ttl: 1000, limit: 10 },
+        { name: 'medium', ttl: 60000, limit: 100 },
+        { name: 'long', ttl: 600000, limit: 500 },
+      ],
     }),
     MongooseModule.forRootAsync({
       imports: [ConfigModule],
@@ -50,6 +59,12 @@ import { FeedbacksModule } from './feedbacks/feedbacks.module';
     OrdersModule,
     InventoryModule,
     FeedbacksModule,
+  ],
+  providers: [
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
   ],
 })
 export class AppModule {}

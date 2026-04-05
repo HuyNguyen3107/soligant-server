@@ -16,7 +16,7 @@ export class User {
   @Prop({ required: true, unique: true })
   email!: string;
 
-  @Prop({ required: true })
+  @Prop({ required: true, select: false })
   password!: string;
 
   @Prop({ enum: UserRole, default: UserRole.USER })
@@ -40,3 +40,6 @@ export class User {
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);
+
+UserSchema.index({ customRole: 1 });
+UserSchema.index({ role: 1 });

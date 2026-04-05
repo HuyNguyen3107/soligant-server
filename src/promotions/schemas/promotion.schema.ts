@@ -78,3 +78,6 @@ export class Promotion {
 }
 
 export const PromotionSchema = SchemaFactory.createForClass(Promotion);
+
+PromotionSchema.index({ isActive: 1, startDate: 1, endDate: 1 });
+PromotionSchema.index({ applicableProductType: 1, isActive: 1 });

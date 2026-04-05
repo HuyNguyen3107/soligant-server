@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
+import { AuthModule } from '../auth/auth.module';
 import {
   LegoCustomizationOption,
   LegoCustomizationOptionSchema,
@@ -23,6 +24,7 @@ import {
 
 @Module({
   imports: [
+    AuthModule,
     MongooseModule.forFeature([
       { name: Order.name, schema: OrderSchema },
       { name: OrderSequence.name, schema: OrderSequenceSchema },

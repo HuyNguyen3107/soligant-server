@@ -4,7 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { existsSync, unlinkSync } from 'fs';
+import { unlink } from 'fs/promises';
 import { Model } from 'mongoose';
 import { join } from 'path';
 import { CreateBearCustomizationGroupDto } from './dto/create-bear-customization-group.dto';
@@ -482,15 +482,13 @@ export class BearCustomizationsService {
     }
   }
 
-  private deleteLocalImage(image: string): void {
+  private async deleteLocalImage(image: string): Promise<void> {
     const match = image.match(/\/uploads\/([^/?#]+)$/);
     if (!match) return;
 
     const filePath = join(process.cwd(), 'public', 'uploads', match[1]);
     try {
-      if (existsSync(filePath)) {
-        unlinkSync(filePath);
-      }
+      await unlink(filePath);
     } catch {
       // bỏ qua lỗi xóa ảnh cũ
     }

@@ -279,3 +279,7 @@ export class Order {
 export const OrderSchema = SchemaFactory.createForClass(Order);
 
 OrderSchema.index({ createdAt: -1 });
+OrderSchema.index({ orderCode: 1 }, { unique: true });
+OrderSchema.index({ status: 1, createdAt: -1 });
+OrderSchema.index({ assignedTo: 1, status: 1 });
+OrderSchema.index({ productType: 1, createdAt: -1 });

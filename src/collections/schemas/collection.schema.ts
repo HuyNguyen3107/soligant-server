@@ -28,3 +28,5 @@ export class Collection {
 }
 
 export const CollectionSchema = SchemaFactory.createForClass(Collection);
+
+CollectionSchema.index({ isActive: 1, isFeatured: 1 });

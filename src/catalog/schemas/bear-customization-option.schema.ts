@@ -42,3 +42,5 @@ export class BearCustomizationOption {
 export const BearCustomizationOptionSchema = SchemaFactory.createForClass(
   BearCustomizationOption,
 );
+
+BearCustomizationOptionSchema.index({ groupId: 1, isActive: 1 });
