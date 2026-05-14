@@ -4,6 +4,7 @@ import {
   Param,
   Patch,
   Body,
+  Query,
   UseGuards,
   Request,
   ForbiddenException,
@@ -29,8 +30,29 @@ export class OrdersController {
 
   @Get()
   @RequirePermissions('orders.view')
-  findAll(): Promise<OrderResponse[]> {
-    return this.ordersService.findAll();
+  findAll(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ): Promise<OrderResponse[]> {
+    if (page === undefined && limit === undefined) {
+      return this.ordersService.findAll();
+    }
+    return this.ordersService.findAll({
+      page: page ? Number(page) : undefined,
+      limit: limit ? Number(limit) : undefined,
+    });
+  }
+
+  @Get('paginated')
+  @RequirePermissions('orders.view')
+  findAllPaginated(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.ordersService.findAllPaginated(
+      page ? Number(page) : 1,
+      limit ? Number(limit) : 20,
+    );
   }
 
   @Patch(':id/status')

@@ -6,6 +6,8 @@ import {
 import { Server, Socket } from 'socket.io';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
+import { parse as parseCookies } from 'cookie';
+import { AUTH_ACCESS_COOKIE } from '../auth/auth.controller';
 
 export interface OrderCreatedSocketPayload {
   id: string;
@@ -48,7 +50,12 @@ export class OrdersGateway implements OnGatewayConnection {
 
   async handleConnection(client: Socket) {
     try {
+      const cookieHeader = client.handshake.headers?.cookie ?? '';
+      const cookies = cookieHeader ? parseCookies(cookieHeader) : {};
+      const cookieToken = cookies[AUTH_ACCESS_COOKIE];
+
       const token =
+        cookieToken ||
         (client.handshake.auth?.token as string) ||
         (client.handshake.headers?.authorization?.replace('Bearer ', '') ?? '');
 

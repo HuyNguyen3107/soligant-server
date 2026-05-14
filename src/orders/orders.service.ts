@@ -219,14 +219,81 @@ export class OrdersService {
     private readonly ordersGateway: OrdersGateway,
   ) {}
 
-  async findAll(): Promise<OrderResponse[]> {
+  // Hard upper bound to keep payload size predictable even when callers omit
+  // pagination params. Above this count callers must opt-in to pagination.
+  private static readonly MAX_FIND_ALL_LIMIT = 1000;
+
+  async findAll(options?: {
+    page?: number;
+    limit?: number;
+  }): Promise<OrderResponse[]> {
+    const hasPagination =
+      options?.page !== undefined || options?.limit !== undefined;
+
+    if (!hasPagination) {
+      const orders = (await this.orderModel
+        .find()
+        .sort({ createdAt: -1, updatedAt: -1 })
+        .limit(OrdersService.MAX_FIND_ALL_LIMIT)
+        .lean()
+        .exec()) as OrderSource[];
+
+      return orders.map((order) => this.mapOrder(order));
+    }
+
+    const page = Math.max(1, Math.floor(Number(options?.page ?? 1)) || 1);
+    const limit = Math.min(
+      100,
+      Math.max(1, Math.floor(Number(options?.limit ?? 20)) || 20),
+    );
+    const skip = (page - 1) * limit;
+
     const orders = (await this.orderModel
       .find()
       .sort({ createdAt: -1, updatedAt: -1 })
+      .skip(skip)
+      .limit(limit)
       .lean()
       .exec()) as OrderSource[];
 
     return orders.map((order) => this.mapOrder(order));
+  }
+
+  async findAllPaginated(
+    page: number,
+    limit: number,
+  ): Promise<{
+    items: OrderResponse[];
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  }> {
+    const safePage = Math.max(1, Math.floor(Number(page ?? 1)) || 1);
+    const safeLimit = Math.min(
+      100,
+      Math.max(1, Math.floor(Number(limit ?? 20)) || 20),
+    );
+    const skip = (safePage - 1) * safeLimit;
+
+    const [orders, total] = await Promise.all([
+      this.orderModel
+        .find()
+        .sort({ createdAt: -1, updatedAt: -1 })
+        .skip(skip)
+        .limit(safeLimit)
+        .lean()
+        .exec() as Promise<OrderSource[]>,
+      this.orderModel.estimatedDocumentCount().exec(),
+    ]);
+
+    return {
+      items: orders.map((order) => this.mapOrder(order)),
+      page: safePage,
+      limit: safeLimit,
+      total,
+      totalPages: Math.max(1, Math.ceil(total / safeLimit)),
+    };
   }
 
   async findById(id: string): Promise<OrderResponse> {

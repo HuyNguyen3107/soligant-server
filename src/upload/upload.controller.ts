@@ -13,12 +13,30 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
-import { extname, join } from 'path';
-import { existsSync, mkdirSync } from 'fs';
-import { unlink } from 'fs/promises';
+import { extname, join, resolve, sep } from 'path';
+import { existsSync, mkdirSync, realpathSync } from 'fs';
+import { realpath, unlink } from 'fs/promises';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
 const UPLOAD_DIR = join(process.cwd(), 'public', 'uploads');
+// Resolve symlinks once at boot so containment checks compare canonical paths.
+const UPLOAD_DIR_REAL = (() => {
+  try {
+    return realpathSync(UPLOAD_DIR);
+  } catch {
+    return UPLOAD_DIR;
+  }
+})();
+
+const isWithinUploadDir = (candidate: string) => {
+  const normalized = resolve(candidate);
+  const root = UPLOAD_DIR_REAL.endsWith(sep)
+    ? UPLOAD_DIR_REAL
+    : `${UPLOAD_DIR_REAL}${sep}`;
+  return normalized === UPLOAD_DIR_REAL || normalized.startsWith(root);
+};
+
+const ALLOWED_FILENAME = /^[A-Za-z0-9._-]+$/;
 
 // Đảm bảo thư mục uploads tồn tại (sync is fine at startup)
 if (!existsSync(UPLOAD_DIR)) {
@@ -71,17 +89,28 @@ export class UploadController {
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.NO_CONTENT)
   async deleteImage(@Param('filename') filename: string): Promise<void> {
-    // Chặn path traversal
-    if (
-      filename.includes('..') ||
-      filename.includes('/') ||
-      filename.includes('\\')
-    ) {
+    // Whitelist filename characters — blocks separators, traversal, NUL, etc.
+    if (!filename || filename.length > 255 || !ALLOWED_FILENAME.test(filename)) {
       throw new BadRequestException('Tên file không hợp lệ.');
     }
-    const filePath = join(UPLOAD_DIR, filename);
+
+    const filePath = join(UPLOAD_DIR_REAL, filename);
+
+    // Defence in depth: confirm the resolved path is inside the uploads dir
+    // even after symlink resolution.
+    let canonicalPath = resolve(filePath);
     try {
-      await unlink(filePath);
+      canonicalPath = await realpath(filePath);
+    } catch {
+      // File may not exist — fall through to the unlink which will 404.
+    }
+
+    if (!isWithinUploadDir(canonicalPath)) {
+      throw new BadRequestException('Tên file không hợp lệ.');
+    }
+
+    try {
+      await unlink(canonicalPath);
     } catch {
       throw new NotFoundException('File không tồn tại hoặc không thể xóa.');
     }
